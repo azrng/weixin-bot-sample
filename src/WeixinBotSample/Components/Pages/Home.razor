@@ -1,0 +1,280 @@
+@page "/"
+
+<PageTitle>微信 iLink Bot 演示 Demo</PageTitle>
+
+@if (_isLoading)
+{
+    <section class="page-loading">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="page-loading-text">正在加载微信演示状态...</p>
+    </section>
+}
+else
+{
+    <main class="demo-shell">
+        <section class="hero-panel">
+            <div class="hero-panel__brand">
+                <img src="images/app-icon.svg" alt="应用图标" class="hero-panel__icon" />
+                <div>
+                    <p class="hero-panel__eyebrow">Official WeChat iLink Bot Demo</p>
+                    <h1>微信 iLink Bot 演示 Demo</h1>
+                    <p class="hero-panel__summary">演示 Bot 绑定、用户发消息自动回复祝福语，以及主动推送消息。</p>
+                </div>
+            </div>
+            <div class="hero-panel__status">
+                <span class="status-chip @GetRuntimeStatusClass()">@GetRuntimeStatusText()</span>
+                <span class="status-chip @GetBindingStatusClass()">@GetBindingStatusText()</span>
+            </div>
+        </section>
+
+        @if (!string.IsNullOrWhiteSpace(_pageError))
+        {
+            <div class="alert alert-danger demo-alert" role="alert">
+                @_pageError
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_state?.LoadError))
+        {
+            <div class="alert alert-warning demo-alert" role="alert">
+                @_state.LoadError
+            </div>
+        }
+
+        <section class="demo-grid">
+            <article class="demo-card demo-card--wide">
+                <div class="demo-card__header">
+                    <div>
+                        <p class="demo-card__eyebrow">基础配置</p>
+                        <h2>连接参数</h2>
+                    </div>
+                    <button class="btn btn-primary" @onclick="SaveConfigurationAsync" disabled="@_isSaving">
+                        @_saveButtonText
+                    </button>
+                </div>
+                <div class="demo-form-grid">
+                    <label class="demo-field">
+                        <span>网关地址</span>
+                        <input class="form-control" @bind="_configurationModel.BaseUrl" @bind:after="MarkConfigurationDirty" />
+                    </label>
+                    <label class="demo-field">
+                        <span>RouteTag</span>
+                        <input class="form-control" @bind="_configurationModel.RouteTag" @bind:after="MarkConfigurationDirty" />
+                    </label>
+                    <label class="demo-field">
+                        <span>Token</span>
+                        <input class="form-control" @bind="_configurationModel.Token" @bind:after="MarkConfigurationDirty" />
+                    </label>
+                    <label class="demo-field">
+                        <span>账号 ID</span>
+                        <input class="form-control" @bind="_configurationModel.AccountId" @bind:after="MarkConfigurationDirty" />
+                    </label>
+                    <label class="demo-field">
+                        <span>用户 ID</span>
+                        <input class="form-control" @bind="_configurationModel.UserId" @bind:after="MarkConfigurationDirty" />
+                    </label>
+                    <div class="demo-field demo-field--hint">
+                        <span>最近更新</span>
+                        <strong>@FormatDateTime(_state?.Configuration.UpdatedAt)</strong>
+                        <small>绑定成功后，Token / 账号 / 用户信息会自动回写到这里。</small>
+                    </div>
+                </div>
+            </article>
+
+            <article class="demo-card">
+                <div class="demo-card__header">
+                    <div>
+                        <p class="demo-card__eyebrow">微信绑定</p>
+                        <h2>二维码接入</h2>
+                    </div>
+                    <div class="demo-action-group">
+                        <button class="btn btn-outline-primary" @onclick="BindWeChatAsync" disabled="@_isBinding">绑定微信</button>
+                        <button class="btn btn-outline-secondary" @onclick="RefreshQrCodeAsync" disabled="@_isBinding">刷新二维码</button>
+                    </div>
+                </div>
+                <div class="binding-panel">
+                    @if (!string.IsNullOrWhiteSpace(_state?.ActiveBindingSession?.QrCodeDataUrl))
+                    {
+                        <img src="@_state.ActiveBindingSession.QrCodeDataUrl" alt="微信绑定二维码" class="binding-panel__qr" />
+                    }
+                    else
+                    {
+                        <div class="empty-block">
+                            <div class="empty-block__icon">QR</div>
+                            <p>点击“绑定微信”后，这里会显示扫码二维码。</p>
+                        </div>
+                    }
+
+                    <dl class="meta-list">
+                        <div>
+                            <dt>绑定状态</dt>
+                            <dd>@GetBindingStatusText()</dd>
+                        </div>
+                        <div>
+                            <dt>绑定账号</dt>
+                            <dd>@DisplayOrFallback(_state?.Configuration.BoundAccountName, "尚未绑定")</dd>
+                        </div>
+                        <div>
+                            <dt>二维码状态</dt>
+                            <dd>@DisplayOrFallback(_state?.ActiveBindingSession?.Message, "暂无进行中的绑定流程")</dd>
+                        </div>
+                        <div>
+                            <dt>会话 Key</dt>
+                            <dd>@DisplayOrFallback(_state?.ActiveBindingSession?.SessionKey, "-")</dd>
+                        </div>
+                    </dl>
+                </div>
+            </article>
+
+            <article class="demo-card">
+                <div class="demo-card__header">
+                    <div>
+                        <p class="demo-card__eyebrow">监听控制</p>
+                        <h2>消息接收</h2>
+                    </div>
+                    <div class="demo-action-group">
+                        <button class="btn btn-success" @onclick="StartListeningAsync" disabled="@_isRuntimeWorking">启动监听</button>
+                        <button class="btn btn-outline-danger" @onclick="StopListeningAsync" disabled="@_isRuntimeWorking">停止监听</button>
+                    </div>
+                </div>
+                <dl class="meta-list">
+                    <div>
+                        <dt>当前状态</dt>
+                        <dd>@GetRuntimeStatusText()</dd>
+                    </div>
+                    <div>
+                        <dt>最近启动</dt>
+                        <dd>@FormatDateTime(_state?.Configuration.RuntimeStartedAt)</dd>
+                    </div>
+                    <div>
+                        <dt>最近停止</dt>
+                        <dd>@FormatDateTime(_state?.Configuration.RuntimeStoppedAt)</dd>
+                    </div>
+                    <div>
+                        <dt>错误信息</dt>
+                        <dd>@DisplayOrFallback(_state?.Configuration.RuntimeError, "无")</dd>
+                    </div>
+                </dl>
+            </article>
+
+            <article class="demo-card demo-card--wide">
+                <div class="demo-card__header">
+                    <div>
+                        <p class="demo-card__eyebrow">主动推送示例</p>
+                        <h2>向用户发送消息</h2>
+                    </div>
+                    <button class="btn btn-primary" @onclick="SendPushAsync" disabled="@_isPushing">推送演示消息</button>
+                </div>
+                <div class="demo-form-grid">
+                    <label class="demo-field">
+                        <span>ExternalChatId</span>
+                        <input class="form-control" @bind="_pushRequest.ExternalChatId" />
+                    </label>
+                    <label class="demo-field">
+                        <span>ContextToken</span>
+                        <input class="form-control" @bind="_pushRequest.ContextToken" />
+                    </label>
+                    <label class="demo-field demo-field--full">
+                        <span>推送内容</span>
+                        <textarea class="form-control demo-textarea" @bind="_pushRequest.Content"></textarea>
+                    </label>
+                </div>
+
+                @if (_state?.LastPushResult is not null)
+                {
+                    <div class="result-panel @( _state.LastPushResult.Succeeded ? "result-panel--success" : "result-panel--error")">
+                        <p>@_state.LastPushResult.Message</p>
+                        <small>发送时间：@FormatDateTime(_state.LastPushResult.SentAt)</small>
+                        <small>响应摘要：@_state.LastPushResult.ResponseSummary</small>
+                    </div>
+                }
+            </article>
+
+            <article class="demo-card">
+                <div class="demo-card__header">
+                    <div>
+                        <p class="demo-card__eyebrow">自动回复</p>
+                        <h2>固定祝福语</h2>
+                    </div>
+                </div>
+                <div class="greeting-panel">
+                    <p class="greeting-panel__primary">@DisplayOrFallback(_state?.PrimaryGreeting, "-")</p>
+                    <p class="greeting-panel__secondary">最近一次回复：@DisplayOrFallback(_state?.LatestReplyText, "还没有回复记录")</p>
+                </div>
+            </article>
+
+            <article class="demo-card demo-card--wide">
+                <div class="demo-card__header">
+                    <div>
+                        <p class="demo-card__eyebrow">最近入站消息</p>
+                        <h2>微信用户消息记录</h2>
+                    </div>
+                </div>
+                @if (_state?.Messages.Count > 0)
+                {
+                    <div class="table-responsive">
+                        <table class="table demo-table">
+                            <thead>
+                                <tr>
+                                    <th>时间</th>
+                                    <th>发送者</th>
+                                    <th>会话 ID</th>
+                                    <th>原文</th>
+                                    <th>回复结果</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in _state.Messages)
+                                {
+                                    <tr>
+                                        <td>@FormatDateTime(item.CreatedAt)</td>
+                                        <td>@DisplayOrFallback(item.SenderName, item.ExternalUserId)</td>
+                                        <td>@item.ExternalChatId</td>
+                                        <td>@item.Text</td>
+                                        <td>@item.ReplyStatus</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="empty-block empty-block--compact">
+                        <div class="empty-block__icon">MSG</div>
+                        <p>监听启动后，收到的微信消息会显示在这里。</p>
+                    </div>
+                }
+            </article>
+
+            <article class="demo-card demo-card--wide">
+                <div class="demo-card__header">
+                    <div>
+                        <p class="demo-card__eyebrow">操作日志</p>
+                        <h2>关键链路可视化</h2>
+                    </div>
+                </div>
+                @if (_state?.Logs.Count > 0)
+                {
+                    <ul class="log-list">
+                        @foreach (var item in _state.Logs)
+                        {
+                            <li class="log-list__item">
+                                <span class="log-list__time">@FormatDateTime(item.CreatedAt)</span>
+                                <span class="log-list__badge log-list__badge--@item.Level.ToLowerInvariant()">@item.Level</span>
+                                <span class="log-list__message">@item.Message</span>
+                            </li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <div class="empty-block empty-block--compact">
+                        <div class="empty-block__icon">LOG</div>
+                        <p>操作日志会在这里实时沉淀，方便演示和排查。</p>
+                    </div>
+                }
+            </article>
+        </section>
+    </main>
+}

@@ -218,6 +218,7 @@ ClientBin/
 ~$*
 *~
 *.dbmdl
+src/WeixinBotSample/App_Data/
 *.dbproj.schemaview
 *.jfm
 *.pfx

@@ -1,0 +1,38 @@
+namespace WeixinBotSample.Models;
+
+public sealed class WeixinDemoState
+{
+    public DemoConfiguration Configuration { get; set; } = new();
+
+    public BindingSessionState? ActiveBindingSession { get; set; }
+
+    public List<WeixinMessageRecord> Messages { get; set; } = [];
+
+    public List<OperationLogEntry> Logs { get; set; } = [];
+
+    public PushMessageResult? LastPushResult { get; set; }
+
+    public string PrimaryGreeting { get; set; } = "祝您今天顺顺利利，万事如意。";
+
+    public string LatestReplyText { get; set; } = string.Empty;
+
+    public string LoadError { get; set; } = string.Empty;
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public WeixinDemoState Clone()
+    {
+        return new WeixinDemoState
+        {
+            Configuration = Configuration.Clone(),
+            ActiveBindingSession = ActiveBindingSession?.Clone(),
+            Messages = Messages.Select(item => item.Clone()).ToList(),
+            Logs = Logs.Select(item => item.Clone()).ToList(),
+            LastPushResult = LastPushResult?.Clone(),
+            PrimaryGreeting = PrimaryGreeting,
+            LatestReplyText = LatestReplyText,
+            LoadError = LoadError,
+            UpdatedAt = UpdatedAt,
+        };
+    }
+}

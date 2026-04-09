@@ -1,0 +1,13 @@
+:root {
+    --bs-primary: #0a58ca;
+    --bs-primary-rgb: 10, 88, 202;
+    --bs-success: #198754;
+    --bs-info: #0dcaf0;
+    --bs-warning: #ffc107;
+    --bs-danger: #dc3545;
+    --demo-hero-start: #031633;
+    --demo-hero-end: #0a58ca;
+    --demo-surface: rgba(255, 255, 255, 0.9);
+    --demo-border: rgba(8, 66, 152, 0.14);
+    --demo-shadow: 0 1rem 3rem rgba(3, 22, 51, 0.14);
+}
