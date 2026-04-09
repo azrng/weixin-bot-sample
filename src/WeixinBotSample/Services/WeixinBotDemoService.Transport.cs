@@ -120,16 +120,10 @@ public sealed partial class WeixinBotDemoService
         inboundMessage = default!;
         skipReason = string.Empty;
 
-        if (message.MessageType != 2)
-        {
-            skipReason = $"message_type={message.MessageType}";
-            return false;
-        }
-
         var textItem = message.ItemList.FirstOrDefault(item => item.Type == 1)?.TextItem?.Text?.Trim();
         if (string.IsNullOrWhiteSpace(textItem))
         {
-            skipReason = "消息中没有文本内容";
+            skipReason = $"message_type={message.MessageType}，消息中没有文本内容";
             return false;
         }
 

@@ -178,6 +178,10 @@ else
                         <span>推送内容</span>
                         <textarea class="form-control demo-textarea" @bind="_pushRequest.Content"></textarea>
                     </label>
+                    <div class="demo-field demo-field--full demo-field--hint">
+                        <span>默认目标</span>
+                        <small>@GetPushTargetHint()</small>
+                    </div>
                 </div>
 
                 @if (_state?.LastPushResult is not null)

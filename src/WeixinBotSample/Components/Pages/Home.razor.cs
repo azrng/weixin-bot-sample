@@ -13,6 +13,8 @@ public partial class Home : ComponentBase, IAsyncDisposable
     private WeixinDemoState? _state;
     private DemoConfiguration _configurationModel = new();
     private PushMessageRequest _pushRequest = new();
+    private string _lastSuggestedExternalChatId = string.Empty;
+    private string _lastSuggestedContextToken = string.Empty;
     private bool _isLoading = true;
     private bool _isSaving;
     private bool _isBinding;
@@ -57,15 +59,7 @@ public partial class Home : ComponentBase, IAsyncDisposable
                 _configurationDirty = false;
             }
 
-            if (string.IsNullOrWhiteSpace(_pushRequest.ExternalChatId))
-            {
-                _pushRequest.ExternalChatId = state.Configuration.LastExternalChatId;
-            }
-
-            if (string.IsNullOrWhiteSpace(_pushRequest.ContextToken))
-            {
-                _pushRequest.ContextToken = state.Configuration.LastContextToken;
-            }
+            ApplyPushRequestDefaults(state);
 
             _isLoading = false;
         }
@@ -201,6 +195,49 @@ public partial class Home : ComponentBase, IAsyncDisposable
     private static string DisplayOrFallback(string? value, string fallback)
     {
         return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+    }
+
+    private void ApplyPushRequestDefaults(WeixinDemoState state)
+    {
+        var currentMessage = state.Messages.FirstOrDefault(item =>
+            !string.IsNullOrWhiteSpace(item.ExternalChatId) &&
+            !string.IsNullOrWhiteSpace(item.ContextToken));
+        var suggestedExternalChatId = currentMessage?.ExternalChatId ?? state.Configuration.LastExternalChatId;
+        var suggestedContextToken = currentMessage?.ContextToken ?? state.Configuration.LastContextToken;
+
+        if (ShouldApplySuggestedValue(_pushRequest.ExternalChatId, _lastSuggestedExternalChatId))
+        {
+            _pushRequest.ExternalChatId = suggestedExternalChatId;
+        }
+
+        if (ShouldApplySuggestedValue(_pushRequest.ContextToken, _lastSuggestedContextToken))
+        {
+            _pushRequest.ContextToken = suggestedContextToken;
+        }
+
+        _lastSuggestedExternalChatId = suggestedExternalChatId;
+        _lastSuggestedContextToken = suggestedContextToken;
+    }
+
+    private string GetPushTargetHint()
+    {
+        var currentMessage = _state?.Messages.FirstOrDefault(item =>
+            !string.IsNullOrWhiteSpace(item.ExternalChatId) &&
+            !string.IsNullOrWhiteSpace(item.ContextToken));
+
+        if (currentMessage is null)
+        {
+            return "默认带入最近一次可回复的微信会话。";
+        }
+
+        var senderName = DisplayOrFallback(currentMessage.SenderName, currentMessage.ExternalUserId);
+        return $"默认带入当前微信用户：{senderName} / {currentMessage.ExternalChatId}";
+    }
+
+    private static bool ShouldApplySuggestedValue(string currentValue, string lastSuggestedValue)
+    {
+        return string.IsNullOrWhiteSpace(currentValue) ||
+               string.Equals(currentValue.Trim(), lastSuggestedValue, StringComparison.Ordinal);
     }
 
     public async ValueTask DisposeAsync()
