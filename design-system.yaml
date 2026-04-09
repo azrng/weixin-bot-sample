@@ -1,0 +1,612 @@
+# 设计与组件规则的唯一事实来源。
+# 该文件面向人和 AI 共同使用：可读、可解析、非可执行、易于比对。
+# 技术栈：.NET 10 + Blazor Server + BootstrapBlazor (Bootstrap 5)
+
+meta:
+  name: "企业级应用设计系统（Blazor Server + BootstrapBlazor）"
+  version: "1.0.0"
+  status: "启用中"
+  owners:
+    - "design"
+    - "frontend"
+  tech_stack:
+    ui_framework: "BootstrapBlazor（基于 Bootstrap 5，唯一组件库）"
+    styling: "Bootstrap 5 CSS 变量 + 自定义 SCSS/CSS（唯一样式引擎）"
+    icons: "Bootstrap Icons（唯一图标库，尺寸 16-24px）"
+    charts: "BootstrapBlazor 内置 Chart 组件 或 ECharts（通过 JSInterop）"
+    state_management: "Blazor Scoped 服务（全局状态）+ @bind/@code（组件本地状态）"
+  default_ports:
+    blazor_app: 8080 # Blazor Server / 容器内端口
+    database: 5432 # PostgreSQL / 容器内端口
+  port_conflict_policy: "宿主机端口冲突时，优先调整 docker-compose.yml 中的宿主机映射端口，容器内端口保持不变，并同步更新 .env.example 和配置"
+  usage:
+    read_order:
+      - "在进行任何 UI 改动前阅读本文件"
+      - "然后查看 wwwroot/css/theme.css 主题覆盖"
+      - "然后再查看现有页面与组件实现"
+    principles:
+      - "优先复用，而不是重新发明"
+      - "优先使用 BootstrapBlazor 组件，而不是自定义实现"
+      - "优先使用 Bootstrap CSS 变量，而不是硬编码视觉值"
+      - "优先使用已有项目组件，而不是先写自定义组件"
+
+product:
+  style_keywords:
+    - "专业"
+    - "清晰"
+    - "可信"
+    - "高效"
+    - "现代"
+  ui_goal:
+    - "企业后台界面优先保证清晰度与信息密度平衡"
+    - "状态和反馈必须让用户一眼看懂"
+    - "数据可视化图表风格统一、专业"
+    - "Blazor Server 交互流畅，减少不必要的页面刷新"
+
+# ============================================================
+# 颜色 Token
+# 基于 Bootstrap 5 CSS 变量体系
+# 使用方式：var(--bs-primary) 或 Bootstrap 工具类 text-primary
+# ============================================================
+tokens:
+  colors:
+    # 主品牌色 - 企业蓝
+    primary:
+      50: "#EEF4FF"
+      100: "#E0EBFF"
+      200: "#B3D9FF"
+      300: "#80C1FF"
+      400: "#4DA8FF"
+      500: "#0d6efd" # 主色，与 Bootstrap 默认 primary 对齐
+      600: "#0a58ca"
+      700: "#084298"
+      800: "#052c65"
+      900: "#031633"
+
+    # 成功色
+    success:
+      50: "#F0FDF4"
+      100: "#E6FBEE"
+      200: "#BFFCE0"
+      300: "#8FF7D0"
+      400: "#5AE9BA"
+      500: "#198754" # 与 Bootstrap success 对齐
+      600: "#146c43"
+      700: "#0f5132"
+      800: "#0a3622"
+      900: "#051b11"
+
+    # 警告色
+    warning:
+      50: "#FEF3C7"
+      100: "#FEE8B6"
+      200: "#FDD48F"
+      300: "#FBC15E"
+      400: "#F9A825"
+      500: "#ffc107" # 与 Bootstrap warning 对齐
+      600: "#d9a406"
+      700: "#b37d05"
+      800: "#8c5e04"
+      900: "#664003"
+
+    # 错误/危险色
+    danger:
+      50: "#FEF2F2"
+      100: "#FEE2E2"
+      200: "#FECACA"
+      300: "#FCA5A5"
+      400: "#F87171"
+      500: "#dc3545" # 与 Bootstrap danger 对齐
+      600: "#bb2d3b"
+      700: "#9a252f"
+      800: "#791d25"
+      900: "#58151c"
+
+    # 信息色
+    info:
+      50: "#EFF6FF"
+      100: "#DBEAFE"
+      200: "#B8D4FE"
+      500: "#0dcaf0" # 与 Bootstrap info 对齐
+      600: "#0aa2c0"
+      700: "#087a90"
+      800: "#065260"
+      900: "#042a30"
+
+    # 中性色 - 灰度系
+    gray:
+      50: "#F8F9FA" # Bootstrap gray-100
+      100: "#F3F4F6"
+      150: "#EBEEF2"
+      200: "#E9ECEF" # Bootstrap gray-200
+      300: "#DEE2E6" # Bootstrap gray-300
+      400: "#ADB5BD" # Bootstrap gray-400
+      500: "#6C757D" # Bootstrap gray-500
+      600: "#495057" # Bootstrap gray-600
+      700: "#343A40" # Bootstrap gray-700
+      800: "#212529" # Bootstrap gray-800
+      900: "#111827"
+
+  # ============================================================
+  # 语义化颜色映射
+  # ============================================================
+  semantic:
+    text:
+      primary: "text-body" # Bootstrap 主文本
+      secondary: "text-muted" # 次要文本
+      disabled: "text-black-50" # 禁用文本
+      inverse: "text-white" # 反色文本
+      link: "text-primary" # 链接
+      link_hover: "text-primary" # .text-decoration-underline
+    background:
+      page: "bg-light" # 页面背景
+      container: "bg-white" # 卡片/面板背景
+      subtle: "bg-body-secondary" # 次级区块背景
+      active: "bg-primary-subtle" # 激活/选中背景
+    border:
+      default: "border" # 默认边框
+      strong: "border-secondary" # 强调边框
+      focus: "border-primary" # 焦点边框
+    status:
+      success_bg: "bg-success-subtle"
+      success_text: "text-success"
+      warning_bg: "bg-warning-subtle"
+      warning_text: "text-warning"
+      danger_bg: "bg-danger-subtle"
+      danger_text: "text-danger"
+      info_bg: "bg-info-subtle"
+      info_text: "text-info"
+
+  typography:
+    font_family:
+      sans: "'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+      mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
+    font_size:
+      xs: "0.75rem" # 12px - fs-6 或自定义
+      sm: "0.875rem" # 14px - Bootstrap 默认小号
+      base: "1rem" # 16px - Bootstrap 根字号
+      md: "0.9375rem" # 15px
+      lg: "1.125rem" # 18px - fs-5
+      xl: "1.25rem" # 20px - fs-4
+      2xl: "1.5rem" # 24px - fs-3
+      3xl: "1.875rem" # 30px - fs-2
+      4xl: "2.25rem" # 36px - fs-1
+    font_weight:
+      light: 300 # fw-light
+      normal: 400 # fw-normal
+      medium: 500 # fw-medium
+      semibold: 600 # fw-semibold
+      bold: 700 # fw-bold
+    line_height:
+      tight: 1.2 # lh-1
+      normal: 1.5 # lh-base（默认）
+      relaxed: 1.75
+
+  spacing:
+    base_unit: "0.25rem" # Bootstrap spacing 基础单位（4px 的近似）
+    # 使用 Bootstrap 间距工具类，禁止硬编码数值
+    scale:
+      0: "0"
+      1: "0.25rem" # 4px - p-1, m-1
+      2: "0.5rem" # 8px - p-2, m-2
+      3: "1rem" # 16px - p-3, m-3
+      4: "1.5rem" # 24px - p-4, m-4
+      5: "3rem" # 48px - p-5, m-5
+
+  radius:
+    none: "0"
+    sm: "0.2rem" # rounded-1
+    md: "0.375rem" # rounded（默认）
+    lg: "0.5rem" # rounded-3
+    xl: "0.75rem" # rounded-4
+    2xl: "1rem" # rounded-5
+    full: "50rem" # rounded-pill
+
+  shadow:
+    none: "none" # shadow-none
+    sm: "0 0.125rem 0.25rem rgba(0, 0, 0, 0.075)" # shadow-sm
+    md: "0 0.5rem 1rem rgba(0, 0, 0, 0.15)" # shadow（默认）
+    lg: "0 1rem 3rem rgba(0, 0, 0, 0.175)" # shadow-lg
+
+  transitions:
+    fast: "100ms"
+    base: "200ms"
+    slow: "300ms"
+    slower: "500ms"
+
+  breakpoints:
+    sm: "576px" # Bootstrap sm
+    md: "768px" # Bootstrap md
+    lg: "992px" # Bootstrap lg
+    xl: "1200px" # Bootstrap xl
+    xxl: "1400px" # Bootstrap xxl
+
+# ============================================================
+# BootstrapBlazor 主题配置映射
+# 自定义主题覆盖在 wwwroot/css/theme.css 中实现
+# ============================================================
+bootstrap_blazor:
+  theme_overrides:
+    location: "wwwroot/css/theme.css"
+    description: "通过覆盖 Bootstrap CSS 变量自定义主题颜色"
+    css_variables:
+      primary: "--bs-primary"
+      success: "--bs-success"
+      warning: "--bs-warning"
+      danger: "--bs-danger"
+      info: "--bs-info"
+  usage_rules:
+    - "优先使用 BootstrapBlazor 组件，不重复造轮子"
+    - "优先使用 Bootstrap CSS 工具类：text-primary、bg-light、p-3、mb-4"
+    - "禁止使用 style=\"\" 属性硬编码样式"
+    - "间距统一用 Bootstrap 工具类：p-3、m-2、gap-3、px-4 等"
+    - "响应式遵循 Bootstrap 断点：col-12 col-md-6 col-lg-4"
+
+# ============================================================
+# 状态管理规范
+# ============================================================
+state_management:
+  local_state:
+    tool: "Blazor @code 块 + @bind 双向绑定"
+    use_for:
+      - "表单输入值"
+      - "弹窗开关"
+      - "单个组件的 loading/error 状态"
+      - "本地筛选、排序、分页"
+  global_state:
+    tool: "Blazor Scoped 服务"
+    store_location: "Services/"
+    use_for:
+      - "当前登录用户信息"
+      - "权限与角色"
+      - "侧边菜单折叠状态"
+      - "全局通知/消息"
+      - "跨页面共享的筛选条件"
+      - "主题/语言配置"
+    naming: "XxxService（如 UserService、PermissionService）"
+    injection: "@inject IUserService UserService"
+
+# ============================================================
+# 页面状态规范
+# ============================================================
+page_states:
+  required:
+    - "loading"
+    - "empty"
+    - "error"
+    - "no-permission"
+  guidance:
+    loading:
+      description: "数据加载中"
+      implementation: "使用 BootstrapBlazor 的 Spinner 组件或 Skeleton 骨架屏"
+      bootstrap_example: "<Spinner /> 或 <Skeleton />"
+    empty:
+      description: "无数据"
+      implementation: "展示空状态图示 + 简短说明 + 引导操作按钮"
+      bootstrap_blazor_component: "<Empty /> 组件"
+    error:
+      description: "请求失败"
+      implementation: "展示可读的错误原因，提供重试按钮"
+      bootstrap_blazor_component: "<Alert Color=\"Color.Danger\" />"
+    no_permission:
+      description: "权限不足"
+      implementation: "使用 <AuthorizeView> 组件控制可见性"
+      bootstrap_blazor_component: "<AuthorizeView>"
+
+# ============================================================
+# 组件使用规则
+# ============================================================
+component_rules:
+  reuse_first: true
+  naming:
+    components: "PascalCase（Razor 组件文件名与类名一致）"
+    services: "PascalCase，以 Service 结尾"
+    utils: "PascalCase"
+  custom_component_policy:
+    - "只有在确实存在复用价值时才新增共享组件"
+    - "避免为了单次需求做过度抽象"
+    - "组件职责保持单一"
+  categories:
+    layout:
+      description: "布局组件"
+      location: "Components/Layout/"
+      examples:
+        - "MainLayout.razor（主布局）"
+        - "NavMenu.razor（导航菜单）"
+        - "LoginLayout.razor（登录布局）"
+    ui:
+      description: "基础 UI 组件（优先使用 BootstrapBlazor 内置组件）"
+      location: "Components/Common/"
+      examples:
+        - "BootstrapBlazor: Button, Table, Modal, Drawer, Form"
+        - "BootstrapBlazor: Select, Input, Checkbox, Radio, Switch"
+        - "BootstrapBlazor: DatePicker, Upload, Pagination"
+        - "BootstrapBlazor: Toast, Alert, Confirm, Badge, Tag"
+        - "BootstrapBlazor: Tooltip, Popover, Tabs, Steps"
+        - "BootstrapBlazor: Spinner, Skeleton, Empty"
+        - "BootstrapBlazor: TreeView, Dropdown, Collapse"
+
+# ============================================================
+# 表单规范
+# ============================================================
+form_rules:
+  layout:
+    label_position: "标签在输入框上方（默认）或左侧（水平表单）"
+    required_mark: "标签后紧跟红色星号 *"
+    helper_text: "输入框下方帮助文字，text-muted fs-6"
+    error_text: "输入框下方，text-danger fs-6"
+    field_gap: "Bootstrap 间距 mb-3"
+  sizes:
+    sm:
+      description: "紧凑型，用于筛选栏、内联表单"
+      form_control: "form-control form-control-sm"
+      button: "btn btn-sm"
+    md:
+      description: "默认尺寸，企业表单标准"
+      form_control: "form-control"
+      button: "btn"
+    lg:
+      description: "宽松型，用于登录、注册等关键表单"
+      form_control: "form-control form-control-lg"
+      button: "btn btn-lg"
+  validation:
+    bootstrap_blazor: "使用 BootstrapBlazor 的 ValidateForm 组件"
+    error_border: "Bootstrap is-invalid / is-valid 类自动添加"
+    error_message: "<ValidationMessage For=\"@model => model.Field\" />"
+
+# ============================================================
+# BootstrapBlazor 组件详细规范
+# ============================================================
+component_specs:
+  # ----------------------------------------------------------
+  # 数据输入类
+  # ----------------------------------------------------------
+
+  input:
+    description: "文本输入框"
+    bootstrap_blazor_component: "<BootstrapInput />"
+    sizes:
+      sm: "form-control form-control-sm"
+      md: "form-control" # 默认
+      lg: "form-control form-control-lg"
+    variants:
+      default: "单行文本输入 <BootstrapInput @bind-Value=\"model.Name\" />"
+      textarea: "多行文本 <BootstrapInput TextArea=\"true\" Rows=\"4\" />"
+      password: "密码输入 <BootstrapInput type=\"password\" />"
+      search: "搜索输入，配合InputGroup使用"
+    validation: "配合 ValidateForm 使用"
+
+  select:
+    description: "下拉选择器"
+    bootstrap_blazor_component: "<Select />"
+    variants:
+      single: "单选 <Select Items=\"@items\" @bind-Value=\"model.Type\" />"
+      multiple: "多选 <Select IsMultiple=\"true\" />"
+      searchable: "可搜索 <Select ShowSearch=\"true\" />"
+    rules:
+      - "超过 10 个选项时建议启用搜索模式"
+
+  checkbox:
+    description: "多选框"
+    bootstrap_blazor_component: "<Checkbox /> 或 <CheckboxList />"
+    usage: "<Checkbox @bind-Value=\"model.IsActive\">启用</Checkbox>"
+
+  radio:
+    description: "单选框"
+    bootstrap_blazor_component: "<RadioList />"
+    usage: "<RadioList Items=\"@items\" @bind-Value=\"model.Gender\" />"
+
+  switch:
+    description: "开关"
+    bootstrap_blazor_component: "<Switch />"
+    usage: "<Switch @bind-Value=\"model.Enabled\" />"
+    rules:
+      - "影响范围较大的操作需配合确认提示"
+
+  datepicker:
+    description: "日期选择器"
+    bootstrap_blazor_component: "<DatePicker />"
+    variants:
+      date: "日期选择 <DatePicker @bind-Value=\"model.Date\" />"
+      datetime: "日期时间 <DatePicker ShowTime=\"true\" />"
+      range: "日期范围 <DatePicker IsRange=\"true\" />"
+
+  upload:
+    description: "文件上传"
+    bootstrap_blazor_component: "<Upload />"
+    variants:
+      button: "按钮上传 <Upload />"
+      dragger: "拖拽上传 <Upload IsDragDrop=\"true\" />"
+
+  # ----------------------------------------------------------
+  # 数据展示类
+  # ----------------------------------------------------------
+
+  table:
+    description: "数据表格，企业应用核心组件"
+    bootstrap_blazor_component: "<Table />"
+    features:
+      paging: "<Table IsPagination=\"true\" PageItems=\"20\" />"
+      sorting: "列头排序 Sortable=\"true\""
+      filtering: "列筛选 Filterable=\"true\""
+      selection: "行选择 IsMultipleSelect=\"true\""
+      editing: "行内编辑 EditMode=\"EditMode.Inline\""
+      detail_row: "明细行 IsDetailRow=\"true\""
+    rules:
+      - "表格必须处理 loading、empty、error 三种状态"
+      - "使用 BootstrapBlazor Table 组件，不自定义表格实现"
+      - "操作列固定在最右侧"
+
+  pagination:
+    description: "分页器"
+    usage: "使用 Table 组件内置分页，或独立 <Pagination /> 组件"
+
+  tag:
+    description: "标签"
+    bootstrap_blazor_component: "<Tag />"
+    usage: "<Tag Color=\"Color.Primary\">标签名</Tag>"
+
+  tooltip:
+    description: "文字提示"
+    bootstrap_blazor_component: "<Tooltip />"
+    usage: "<Tooltip Title=\"提示内容\"><Button>悬停查看</Button></Tooltip>"
+
+  popover:
+    description: "气泡卡片"
+    bootstrap_blazor_component: "<Popover />"
+    usage: "<Popover Title=\"标题\" Content=\"内容\"><Button>点击查看</Button></Popover>"
+
+  progress:
+    description: "进度条"
+    bootstrap_blazor_component: "<Progress />"
+    usage: "<Progress Value=\"60\" />"
+
+  avatar:
+    description: "头像"
+    bootstrap_blazor_component: "<Avatar />"
+    usage: "<Avatar Url=\"/images/user.png\" IsCircle=\"true\" />"
+
+  badge:
+    description: "状态标记"
+    bootstrap_blazor_component: "<Badge />"
+    usage: "<Badge Color=\"Color.Success\">在线</Badge>"
+
+  empty:
+    description: "空状态"
+    bootstrap_blazor_component: "<Empty />"
+    usage: "<Empty Text=\"暂无数据\" />"
+
+  # ----------------------------------------------------------
+  # 反馈与通知类
+  # ----------------------------------------------------------
+
+  modal:
+    description: "弹窗"
+    bootstrap_blazor_component: "<Modal />"
+    sizes:
+      sm: "小确认框"
+      md: "默认表单弹窗"
+      lg: "复杂表单弹窗"
+      xl: "详情查看"
+    rules:
+      - "表单弹窗提交按钮须有 loading 态，防止重复提交"
+      - "危险操作使用 danger 色确认按钮"
+
+  drawer:
+    description: "抽屉"
+    bootstrap_blazor_component: "<Drawer />"
+    directions:
+      right: "从右侧滑入（默认）"
+      left: "从左侧滑入"
+    rules:
+      - "详情查看用 Drawer，需用户聚焦决策用 Modal"
+
+  alert:
+    description: "内联提示"
+    bootstrap_blazor_component: "<Alert />"
+    usage: "<Alert Color=\"Color.Warning\" ShowDismiss=\"true\">警告信息</Alert>"
+
+  toast:
+    description: "轻提示"
+    bootstrap_blazor: "通过 ToastService 注入服务调用"
+    usage: "await ToastService.Success(\"操作成功\")"
+
+  # ----------------------------------------------------------
+  # 导航类
+  # ----------------------------------------------------------
+
+  steps:
+    description: "步骤条"
+    bootstrap_blazor_component: "<Steps />"
+    usage: "<Steps Items=\"@stepItems\" CurrentStep=\"@currentStep\" />"
+
+  tabs:
+    description: "标签页"
+    bootstrap_blazor_component: "<Tab />"
+    usage: "<TabItem Text=\"基本设置\">内容</TabItem>"
+    rules:
+      - "禁止超过 8 个 Tab"
+
+  breadcrumb:
+    description: "面包屑导航"
+    bootstrap_blazor_component: "<Breadcrumbs />"
+    usage: "<Breadcrumbs Items=\"@breadcrumbItems\" />"
+
+  menu:
+    description: "侧边导航菜单"
+    bootstrap_blazor_component: "<Menu /> 或自定义 NavMenu.razor"
+    rules:
+      - "折叠状态下必须通过 Tooltip 展示菜单名称"
+      - "多级菜单最多 2 层"
+      - "激活项的父级菜单自动展开"
+
+  # ----------------------------------------------------------
+  # 布局增强类
+  # ----------------------------------------------------------
+
+  collapse:
+    description: "折叠面板"
+    bootstrap_blazor_component: "<Collapse />"
+
+  spinner:
+    description: "加载指示器"
+    bootstrap_blazor_component: "<Spinner />"
+    usage: "<Spinner Color=\"Color.Primary\" />"
+    rules:
+      - "表格/列表数据加载优先使用 Skeleton，不用全页 Spinner 遮罩"
+
+  skeleton:
+    description: "骨架屏"
+    bootstrap_blazor_component: "<Skeleton />"
+
+icons:
+  library: "Bootstrap Icons"
+  usage_rules:
+    - "统一使用 Bootstrap Icons 图标类名：bi bi-house、bi bi-person 等"
+    - "BootstrapBlazor 组件内置图标使用 IconName 枚举"
+    - "禁止自定义 SVG 图标或使用其他图标库"
+    - "禁止使用 <img src='icon.svg' /> 作为图标"
+
+# ============================================================
+# 响应式设计规范
+# ============================================================
+responsive:
+  principle: "移动优先（Mobile First）- Bootstrap 5 断点体系"
+  breakpoints:
+    xs: "< 576px（默认，手机竖屏）"
+    sm: "576px - 手机横屏"
+    md: "768px - 平板"
+    lg: "992px - 桌面"
+    xl: "1200px - 宽屏"
+    xxl: "1400px - 超宽屏"
+  common_patterns:
+    grid_cols: "col-12 col-md-6 col-lg-4"
+    padding: "p-3 p-md-4 p-lg-5"
+    sidebar_width: "col-12 col-lg-3"
+
+# ============================================================
+# Do / Don't 规则
+# ============================================================
+do:
+  - "优先复用现有组件和页面模式"
+  - "优先使用 BootstrapBlazor 组件（Table、Form、Modal 等）"
+  - "优先使用 Bootstrap CSS 工具类（text-primary、bg-light、p-3）"
+  - "保持完整的页面状态反馈（loading/empty/error/no-permission）"
+  - "全局状态使用 Scoped 服务，组件本地状态使用 @bind/@code"
+  - "图标统一使用 Bootstrap Icons"
+  - "响应式遵循 Bootstrap 断点体系"
+  - "表单验证使用 BootstrapBlazor 的 ValidateForm"
+
+dont:
+  - "不要使用 style=\"\" 属性硬编码样式"
+  - "不要硬编码颜色值（如 #0d6efd）"
+  - "不要硬编码间距数值"
+  - "不要在组件中直接实现复杂业务逻辑，应提取到服务层"
+  - "不要交付缺少 loading、empty、error 状态的页面"
+  - "不要再创建新的设计 token 文件或平行配置体系"
+  - "不要使用 Bootstrap Icons 以外的图标库"
+  - "不要在没有充分复用价值的情况下创建新共享组件"
+  - "不要在 Blazor Server 中使用 jQuery 操作 DOM"
+  - "不要嵌套超过 2 层弹窗（Modal/Drawer）"
+  - "不要使用非 BootstrapBlazor 的第三方 Blazor 组件库"
+  - "不要在 @code 块中编写同步阻塞代码"
