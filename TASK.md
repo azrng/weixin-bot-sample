@@ -121,3 +121,5 @@
   - 2026-04-14：已完成最近会话自动带入提示，新增待处理自动填充状态、消息页高亮提示与对应单测；重新通过 `dotnet build`、`dotnet test` 与 `/`、`/messages`、`/media`、`/checklist` smoke test，任务回到 REVIEW。
   - 2026-04-14：根据消息页实机反馈，继续优化主动推送前置引导，准备把“缺少 ExternalChatId / ContextToken”从右上角失败提示改为卡片内明确说明，任务状态切回 DOING。
   - 2026-04-14：已完成主动推送前置引导优化，消息页在无会话上下文时改为卡片内说明并高亮缺失字段；重新通过 `dotnet build`、`dotnet test` 与 `/`、`/messages`、`/media`、`/checklist` smoke test，任务回到 REVIEW。
+  - 2026-04-14：根据媒体页真实报错继续排查 `getuploadurl errcode=-2`，准备补媒体页页内诊断、语音字段按类型展示，以及失败 trace 中的请求体保留，任务状态切回 DOING。
+  - 2026-04-14：已完成媒体页 `getuploadurl errcode=-2` 诊断增强，新增页内失败定位、语音字段按类型展示和失败请求体保留；重新通过 `dotnet build`、`dotnet test` 与 `/`、`/messages`、`/media`、`/checklist` smoke test，任务回到 REVIEW。

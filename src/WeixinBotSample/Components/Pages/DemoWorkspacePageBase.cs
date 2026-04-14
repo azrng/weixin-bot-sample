@@ -38,6 +38,7 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
     protected bool ConfigurationDirty;
     protected string PageError = string.Empty;
     protected string PushValidationMessage = string.Empty;
+    protected string MediaValidationMessage = string.Empty;
     protected string DismissedLoadError = string.Empty;
     protected string SaveButtonText => IsSaving ? "保存中..." : "保存配置";
 
@@ -181,6 +182,7 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
     protected async Task OnMediaFileChanged(InputFileChangeEventArgs args)
     {
         ClearFloatingError();
+        ClearMediaValidationMessage();
         var file = args.File;
         if (file is null)
         {
@@ -205,17 +207,22 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
 
     protected async Task SendMediaAsync()
     {
-        if (SelectedMediaContent is null || SelectedMediaContent.Length == 0)
+        ClearFloatingError();
+        if (!TryValidateMediaRequest(out var message))
         {
-            PageError = "请先选择一个媒体文件。";
+            MediaValidationMessage = message;
             return;
         }
+
+        MediaValidationMessage = string.Empty;
+        NormalizeMediaRequestForSend();
+        var mediaContent = SelectedMediaContent!;
 
         MediaRequest.FileName = string.IsNullOrWhiteSpace(MediaRequest.FileName) ? SelectedMediaName : MediaRequest.FileName;
         MediaRequest.ContentType = string.IsNullOrWhiteSpace(MediaRequest.ContentType) ? SelectedMediaContentType : MediaRequest.ContentType;
 
         await ExecuteBusyAsync(
-            () => DemoService.SendMediaMessageAsync(MediaRequest.Clone(), SelectedMediaContent, RefreshCancellation.Token),
+            () => DemoService.SendMediaMessageAsync(MediaRequest.Clone(), mediaContent, RefreshCancellation.Token),
             () => IsSendingMedia = true,
             () => IsSendingMedia = false,
             overwriteConfiguration: true);
@@ -319,6 +326,11 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
     protected void ClearPushValidationMessage()
     {
         PushValidationMessage = string.Empty;
+    }
+
+    protected void ClearMediaValidationMessage()
+    {
+        MediaValidationMessage = string.Empty;
     }
 
     protected string GetRuntimeStatusText()
@@ -461,6 +473,27 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
         return $"默认带入当前微信用户：{senderName} / {currentContact.ExternalChatId}";
     }
 
+    protected string GetMediaTargetHint()
+    {
+        var currentContact = State?.KnownContacts.FirstOrDefault(item =>
+            !string.IsNullOrWhiteSpace(item.ExternalChatId) &&
+            !string.IsNullOrWhiteSpace(item.LatestContextToken));
+
+        if (currentContact is null)
+        {
+            if (State?.Configuration.IsBound == true)
+            {
+                var boundAccount = DisplayOrFallback(State.Configuration.UserId, State.Configuration.AccountId);
+                return $"当前已绑定账号：{boundAccount}。媒体发送同样需要最近会话的 ExternalChatId 和 ContextToken；先收到一条用户消息后，系统才能自动带入。";
+            }
+
+            return "默认带入最近一次可发送媒体的联系人上下文。";
+        }
+
+        var senderName = DisplayOrFallback(currentContact.SenderName, currentContact.ExternalUserId);
+        return $"默认带入当前会话目标：{senderName} / {currentContact.ExternalChatId}";
+    }
+
     protected bool ShouldShowPushReadinessNotice()
     {
         return !HasKnownPushTarget() &&
@@ -478,6 +511,54 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
         return "请先完成微信绑定并启动监听，再让微信用户发来一条消息，系统拿到 ExternalChatId 和 ContextToken 后才能主动推送。";
     }
 
+    protected bool IsVoiceMediaType()
+    {
+        return MediaRequest.MediaType == MediaMessageType.Voice;
+    }
+
+    protected string GetMediaDescriptionLabel()
+    {
+        return IsVoiceMediaType() ? "附加说明 / 语音 ASR 备注" : "附加说明";
+    }
+
+    protected bool ShouldShowMediaSelfTargetHint()
+    {
+        return !string.IsNullOrWhiteSpace(MediaRequest.ExternalChatId) &&
+               !string.IsNullOrWhiteSpace(State?.Configuration.UserId) &&
+               string.Equals(MediaRequest.ExternalChatId.Trim(), State.Configuration.UserId.Trim(), StringComparison.Ordinal);
+    }
+
+    protected string GetMediaSelfTargetHint()
+    {
+        return "当前目标会话就是已绑定 Bot 自己的微信账号。文本消息可以继续演示，但媒体链路如果在 getuploadurl 阶段持续返回 errcode=-2，建议先换成另一位真实联系人发来的会话再继续联调。";
+    }
+
+    protected bool ShouldShowLatestMediaUploadFailureHint()
+    {
+        return GetLatestMediaUploadFailureRecord() is not null;
+    }
+
+    protected string GetLatestMediaUploadFailureHint()
+    {
+        var latestFailure = GetLatestMediaUploadFailureRecord();
+        if (latestFailure is null)
+        {
+            return string.Empty;
+        }
+
+        var traceHint = string.IsNullOrWhiteSpace(latestFailure.TraceFilePath)
+            ? "当前失败发生在 getuploadurl 阶段，尚未进入 CDN 上传和 sendmessage。"
+            : $"当前失败发生在 getuploadurl 阶段，尚未进入 CDN 上传和 sendmessage。Trace 文件：{latestFailure.TraceFilePath}";
+        return $"{traceHint} 文件：{DisplayOrFallback(latestFailure.FileName, "未命名文件")}，密文大小：{FormatFileSize(latestFailure.EncryptedFileSize)}。这通常更接近账号媒体能力、文件类型/大小限制或当前联调场景限制，而不是 ExternalChatId / ContextToken 填写错误。";
+    }
+
+    protected string GetMediaFieldClass(string currentValue)
+    {
+        return !string.IsNullOrWhiteSpace(MediaValidationMessage) && string.IsNullOrWhiteSpace(currentValue)
+            ? "form-control demo-input--missing"
+            : "form-control";
+    }
+
     protected void UseKnownContact(KnownContactSession contact)
     {
         PushRequest.ExternalChatId = contact.ExternalChatId;
@@ -485,6 +566,7 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
         MediaRequest.ExternalChatId = contact.ExternalChatId;
         MediaRequest.ContextToken = contact.LatestContextToken;
         PushValidationMessage = string.Empty;
+        MediaValidationMessage = string.Empty;
     }
 
     private async Task HandlePendingAutoFillAsync(WeixinDemoState state)
@@ -657,6 +739,65 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
     {
         return !string.IsNullOrWhiteSpace(PushValidationMessage) &&
                string.IsNullOrWhiteSpace(currentValue);
+    }
+
+    private bool TryValidateMediaRequest(out string message)
+    {
+        if (string.IsNullOrWhiteSpace(MediaRequest.ExternalChatId) || string.IsNullOrWhiteSpace(MediaRequest.ContextToken))
+        {
+            message = "媒体消息也需要真实会话的 ExternalChatId 和 ContextToken。请先让目标联系人发来一条消息，再点击“带入推送”或手动填写。";
+            return false;
+        }
+
+        if (SelectedMediaContent is null || SelectedMediaContent.Length == 0 || string.IsNullOrWhiteSpace(MediaRequest.FileName))
+        {
+            message = "请先选择一个要发送的媒体文件。";
+            return false;
+        }
+
+        if (MediaRequest.MediaType == MediaMessageType.Image &&
+            !string.IsNullOrWhiteSpace(MediaRequest.ContentType) &&
+            !MediaRequest.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            message = "当前媒体类型选择的是“图片”，但所选文件不是图片内容，请确认文件类型或切换媒体类型。";
+            return false;
+        }
+
+        if (MediaRequest.MediaType == MediaMessageType.Voice)
+        {
+            if (MediaRequest.EncodeType <= 0)
+            {
+                message = "语音消息需要填写有效的编码类型。";
+                return false;
+            }
+
+            if (MediaRequest.PlayTimeMilliseconds <= 0)
+            {
+                message = "语音消息需要填写大于 0 的语音时长（毫秒）。";
+                return false;
+            }
+        }
+
+        message = string.Empty;
+        return true;
+    }
+
+    private void NormalizeMediaRequestForSend()
+    {
+        if (MediaRequest.MediaType != MediaMessageType.Voice)
+        {
+            MediaRequest.EncodeType = 0;
+            MediaRequest.PlayTimeMilliseconds = 0;
+        }
+    }
+
+    private MediaTransferRecord? GetLatestMediaUploadFailureRecord()
+    {
+        return State?.MediaRecords.FirstOrDefault(item =>
+            item.Direction == "Outbound" &&
+            item.TransferStatus == MediaTransferStatus.Failed &&
+            (item.ResponseSummary.Contains("getuploadurl", StringComparison.OrdinalIgnoreCase) ||
+             item.StatusMessage.Contains("上传参数校验失败", StringComparison.OrdinalIgnoreCase)));
     }
 
     public async ValueTask DisposeAsync()

@@ -101,6 +101,25 @@ public sealed class WeixinBotDemoServiceMediaTests
     }
 
     [Fact]
+    public async Task GetUploadUrlAsync_WhenWeixinReturnsApiError_ShouldExposeRequestPayloadOnException()
+    {
+        var handler = new RecordingHandler();
+        handler.Enqueue("""{"errcode":-2,"errmsg":"param invalid"}""");
+        var client = CreatePollingClient(handler, CreateConfiguration());
+
+        var exception = await Assert.ThrowsAnyAsync<InvalidOperationException>(async () =>
+            await InvokeAsync(client, "GetUploadUrlAsync", "demo-file-key", "demo-md5", 2048L, CancellationToken.None));
+
+        var requestPayload = exception.GetType().GetProperty("RequestPayload", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(exception) as string;
+        var responsePayload = exception.GetType().GetProperty("ResponsePayload", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(exception) as string;
+
+        Assert.NotNull(requestPayload);
+        Assert.Contains("\"filekey\":\"demo-file-key\"", requestPayload, StringComparison.Ordinal);
+        Assert.Contains("\"len\":2048", requestPayload, StringComparison.Ordinal);
+        Assert.Contains("\"errcode\":-2", responsePayload, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BuildMediaPayload_ShouldUseEncryptedLengthAndBothAesKeyAliases()
     {
         var request = new MediaUploadRequest

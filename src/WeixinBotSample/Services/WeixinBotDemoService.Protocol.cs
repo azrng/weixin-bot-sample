@@ -257,8 +257,16 @@ public sealed partial class WeixinBotDemoService
                 message.Contains("rpc failed", StringComparison.OrdinalIgnoreCase));
     }
 
-    private sealed class WeixinApiException(string message, int? errorCode = null) : InvalidOperationException(message)
+    private sealed class WeixinApiException(
+        string message,
+        int? errorCode = null,
+        string requestPayload = "",
+        string responsePayload = "") : InvalidOperationException(message)
     {
         public int? ErrorCode { get; } = errorCode;
+
+        public string RequestPayload { get; } = requestPayload;
+
+        public string ResponsePayload { get; } = responsePayload;
     }
 }

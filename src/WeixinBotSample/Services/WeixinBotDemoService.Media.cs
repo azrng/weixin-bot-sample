@@ -426,6 +426,13 @@ public sealed partial class WeixinBotDemoService
                         response = uploadInfo.RawText,
                         status_code = (int)uploadInfo.StatusCode,
                     },
+                getuploadurl_failed_request = uploadInfo is null && exception is WeixinApiException apiException && !string.IsNullOrWhiteSpace(apiException.RequestPayload)
+                    ? new
+                    {
+                        request = apiException.RequestPayload,
+                        response = apiException.ResponsePayload,
+                    }
+                    : null,
                 cdn_upload = uploadResult is null
                     ? null
                     : new

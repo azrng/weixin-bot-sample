@@ -33,39 +33,67 @@
             <p>媒体链路和文本不同。这里会按协议做四步：计算摘要、获取 `upload_param`、AES 加密上传到 CDN、再调用 `sendmessage` 发送媒体结构。这样后面收到消息时，才能反向下载并用 `aes_key` 解密回读。</p>
             <p>这次联调已进一步把媒体结构中的 `len` 对齐到 AES 加密后的密文长度，并兼容 `aeskey` / `aes_key` 两种字段名，以降低协议字段差异导致的失败概率。</p>
         </div>
+        @if (ShouldShowMediaSelfTargetHint())
+        {
+            <div class="result-panel result-panel--warning">
+                <p><strong>当前目标是绑定账号自己</strong></p>
+                <small>@GetMediaSelfTargetHint()</small>
+            </div>
+        }
+        @if (ShouldShowLatestMediaUploadFailureHint())
+        {
+            <div class="result-panel result-panel--warning">
+                <p><strong>最近一次媒体失败定位</strong></p>
+                <small>@GetLatestMediaUploadFailureHint()</small>
+            </div>
+        }
+        @if (!string.IsNullOrWhiteSpace(MediaValidationMessage))
+        {
+            <div class="result-panel result-panel--error">
+                <p><strong>还不能直接发送媒体消息</strong></p>
+                <small>@MediaValidationMessage</small>
+            </div>
+        }
         <div class="demo-form-grid">
             <label class="demo-field">
                 <span>ExternalChatId</span>
-                <input class="form-control" @bind="MediaRequest.ExternalChatId" />
+                <input class="@GetMediaFieldClass(MediaRequest.ExternalChatId)" @bind="MediaRequest.ExternalChatId" @bind:after="ClearMediaValidationMessage" />
             </label>
             <label class="demo-field">
                 <span>ContextToken</span>
-                <input class="form-control" @bind="MediaRequest.ContextToken" />
+                <input class="@GetMediaFieldClass(MediaRequest.ContextToken)" @bind="MediaRequest.ContextToken" @bind:after="ClearMediaValidationMessage" />
             </label>
             <label class="demo-field">
                 <span>媒体类型</span>
-                <select class="form-select" @bind="MediaRequest.MediaType">
+                <select class="form-select" @bind="MediaRequest.MediaType" @bind:after="ClearMediaValidationMessage">
                     <option value="@MediaMessageType.Image">图片</option>
                     <option value="@MediaMessageType.Voice">语音</option>
                     <option value="@MediaMessageType.File">文件</option>
                     <option value="@MediaMessageType.Video">视频</option>
                 </select>
             </label>
-            <label class="demo-field">
-                <span>语音编码类型</span>
-                <input class="form-control" type="number" min="1" @bind="MediaRequest.EncodeType" />
-            </label>
-            <label class="demo-field">
-                <span>语音时长（毫秒）</span>
-                <input class="form-control" type="number" min="0" @bind="MediaRequest.PlayTimeMilliseconds" />
-            </label>
+            <div class="demo-field demo-field--hint">
+                <span>当前目标</span>
+                <small>@GetMediaTargetHint()</small>
+            </div>
+            @if (IsVoiceMediaType())
+            {
+                <label class="demo-field">
+                    <span>语音编码类型</span>
+                    <input class="@GetMediaFieldClass(MediaRequest.EncodeType <= 0 ? string.Empty : MediaRequest.EncodeType.ToString())" type="number" min="1" @bind="MediaRequest.EncodeType" @bind:after="ClearMediaValidationMessage" />
+                </label>
+                <label class="demo-field">
+                    <span>语音时长（毫秒）</span>
+                    <input class="@GetMediaFieldClass(MediaRequest.PlayTimeMilliseconds <= 0 ? string.Empty : MediaRequest.PlayTimeMilliseconds.ToString())" type="number" min="1" @bind="MediaRequest.PlayTimeMilliseconds" @bind:after="ClearMediaValidationMessage" />
+                </label>
+            }
             <label class="demo-field demo-field--full">
                 <span>选择文件</span>
                 <InputFile OnChange="OnMediaFileChanged" class="form-control" />
             </label>
             <label class="demo-field demo-field--full">
-                <span>附加说明 / 语音 ASR 备注</span>
-                <textarea class="form-control demo-textarea" @bind="MediaRequest.Description"></textarea>
+                <span>@GetMediaDescriptionLabel()</span>
+                <textarea class="form-control demo-textarea" @bind="MediaRequest.Description" @bind:after="ClearMediaValidationMessage"></textarea>
             </label>
             <div class="demo-field demo-field--full demo-field--hint">
                 <span>当前文件</span>
@@ -184,6 +212,13 @@
                                                 <div class="technical-detail">
                                                     <span class="technical-detail__label">密文大小</span>
                                                     <span class="technical-value">@FormatFileSize(item.EncryptedFileSize)</span>
+                                                </div>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(item.ResponseSummary))
+                                            {
+                                                <div class="technical-detail">
+                                                    <span class="technical-detail__label">响应摘要</span>
+                                                    <span class="technical-value">@item.ResponseSummary</span>
                                                 </div>
                                             }
                                         </div>

@@ -400,7 +400,9 @@ public sealed partial class WeixinBotDemoService
                     string.IsNullOrWhiteSpace(parsed.ErrorMessage)
                         ? $"微信 getuploadurl 返回异常：{errorCode}"
                         : parsed.ErrorMessage,
-                    errorCode);
+                    errorCode,
+                    payload,
+                    rawText);
             }
 
             if (string.IsNullOrWhiteSpace(parsed.UploadParam))
