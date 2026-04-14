@@ -350,5 +350,8 @@ docs/
 # ai忽略文件
 .claude
 .dotnet-cli
+.dotnet
+.appdata
+.nuget/
 
 NUL

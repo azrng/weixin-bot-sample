@@ -26,6 +26,8 @@ public sealed class MediaTransferRecord
 
     public long FileSize { get; set; }
 
+    public long EncryptedFileSize { get; set; }
+
     public string Md5 { get; set; } = string.Empty;
 
     public string FileKey { get; set; } = string.Empty;
@@ -47,6 +49,8 @@ public sealed class MediaTransferRecord
     public long VideoSize { get; set; }
 
     public string LocalCachePath { get; set; } = string.Empty;
+
+    public string TraceFilePath { get; set; } = string.Empty;
 
     public MediaTransferStatus TransferStatus { get; set; } = MediaTransferStatus.Pending;
 
@@ -74,6 +78,7 @@ public sealed class MediaTransferRecord
             FileName = FileName,
             ContentType = ContentType,
             FileSize = FileSize,
+            EncryptedFileSize = EncryptedFileSize,
             Md5 = Md5,
             FileKey = FileKey,
             Media = Media,
@@ -85,6 +90,7 @@ public sealed class MediaTransferRecord
             PlayTimeMilliseconds = PlayTimeMilliseconds,
             VideoSize = VideoSize,
             LocalCachePath = LocalCachePath,
+            TraceFilePath = TraceFilePath,
             TransferStatus = TransferStatus,
             StatusMessage = StatusMessage,
             ResponseSummary = ResponseSummary,

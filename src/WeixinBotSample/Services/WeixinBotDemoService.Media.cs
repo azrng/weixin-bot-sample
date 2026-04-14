@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.Json;
 using WeixinBotSample.Models;
 
 namespace WeixinBotSample.Services;
@@ -53,6 +54,8 @@ public sealed partial class WeixinBotDemoService
             FileName = request.FileName.Trim(),
             ContentType = request.ContentType.Trim(),
             FileSize = fileContent.Length,
+            EncodeType = request.EncodeType,
+            PlayTimeMilliseconds = request.PlayTimeMilliseconds,
             TransferStatus = MediaTransferStatus.Preparing,
             StatusMessage = "准备发送媒体消息。",
             CreatedAt = DateTimeOffset.UtcNow,
@@ -61,6 +64,9 @@ public sealed partial class WeixinBotDemoService
         await PersistMediaRecordAsync(record, cancellationToken);
 
         var client = new WeixinPollingClient(CreateClient(), configuration);
+        GetUploadUrlResult? uploadInfo = null;
+        UploadMediaResult? uploadResult = null;
+        SendMessageResult? sendResult = null;
 
         try
         {
@@ -75,16 +81,18 @@ public sealed partial class WeixinBotDemoService
             var encryptedLength = encryptedBytes.Length;
 
             record.AesKey = aesKey;
+            record.EncryptedFileSize = encryptedLength;
+            record.VideoSize = encryptedLength;
             record.TransferStatus = MediaTransferStatus.Encrypting;
             record.StatusMessage = $"已完成 AES 加密，准备申请上传参数。明文 {FormatByteLength(fileContent.Length)} / 密文 {FormatByteLength(encryptedLength)}。";
             await PersistMediaRecordAsync(record, cancellationToken);
 
-            var uploadInfo = await client.GetUploadUrlAsync(record.FileKey, record.Md5, encryptedLength, cancellationToken);
+            uploadInfo = await client.GetUploadUrlAsync(record.FileKey, record.Md5, encryptedLength, cancellationToken);
             record.TransferStatus = MediaTransferStatus.Uploading;
             record.StatusMessage = $"已拿到上传参数，开始上传加密媒体。上传长度 {FormatByteLength(encryptedLength)}。";
             await PersistMediaRecordAsync(record, cancellationToken);
 
-            var uploadResult = await client.UploadEncryptedMediaAsync(uploadInfo.UploadParam, record.FileKey, encryptedBytes, request.ContentType, cancellationToken);
+            uploadResult = await client.UploadEncryptedMediaAsync(uploadInfo.UploadParam, record.FileKey, encryptedBytes, request.ContentType, cancellationToken);
 
             record.DownloadParam = uploadResult.DownloadParam;
             record.Media = uploadResult.DownloadParam;
@@ -95,7 +103,7 @@ public sealed partial class WeixinBotDemoService
             record.StatusMessage = "上传成功，开始发送媒体消息结构。";
             await PersistMediaRecordAsync(record, cancellationToken);
 
-            var sendResult = await client.SendMediaMessageAsync(
+            sendResult = await client.SendMediaMessageAsync(
                 record.ExternalChatId,
                 record.ContextToken,
                 BuildMediaPayload(request, record),
@@ -105,6 +113,7 @@ public sealed partial class WeixinBotDemoService
             record.ResponseSummary = TruncateSingleLine(sendResult.RawText, 280);
             record.TransferStatus = MediaTransferStatus.Sent;
             record.StatusMessage = "媒体消息发送成功。";
+            record.TraceFilePath = await PersistMediaTraceAsync(record, configuration, request, uploadInfo, uploadResult, sendResult, null, cancellationToken);
             await PersistMediaRecordAsync(record, cancellationToken);
 
             await _gate.WaitAsync(cancellationToken);
@@ -135,6 +144,7 @@ public sealed partial class WeixinBotDemoService
             record.TransferStatus = MediaTransferStatus.Failed;
             record.StatusMessage = "会话已过期，请重新扫码绑定。";
             record.ResponseSummary = TruncateSingleLine(exception.Message, 280);
+            record.TraceFilePath = await PersistMediaTraceAsync(record, configuration, request, uploadInfo, uploadResult, sendResult, exception, CancellationToken.None);
             await PersistMediaRecordAsync(record, cancellationToken);
             await MarkSessionExpiredAsync("会话已过期，请重新扫码绑定。", CancellationToken.None);
             throw new InvalidOperationException("会话已过期，请重新扫码绑定。", exception);
@@ -144,6 +154,7 @@ public sealed partial class WeixinBotDemoService
             record.TransferStatus = MediaTransferStatus.Failed;
             record.StatusMessage = "媒体上传参数校验失败。";
             record.ResponseSummary = TruncateSingleLine(exception.Message, 280);
+            record.TraceFilePath = await PersistMediaTraceAsync(record, configuration, request, uploadInfo, uploadResult, sendResult, exception, CancellationToken.None);
             await PersistMediaRecordAsync(record, cancellationToken);
             await RecordBackgroundLogAsync("Error", $"媒体消息发送失败：{exception.Message}");
             throw new InvalidOperationException(
@@ -155,6 +166,7 @@ public sealed partial class WeixinBotDemoService
             record.TransferStatus = MediaTransferStatus.Failed;
             record.StatusMessage = exception.Message;
             record.ResponseSummary = TruncateSingleLine(exception.Message, 280);
+            record.TraceFilePath = await PersistMediaTraceAsync(record, configuration, request, uploadInfo, uploadResult, sendResult, exception, CancellationToken.None);
             await PersistMediaRecordAsync(record, cancellationToken);
             await RecordBackgroundLogAsync("Error", $"媒体消息发送失败：{exception.Message}");
             throw;
@@ -251,6 +263,9 @@ public sealed partial class WeixinBotDemoService
 
     private static object BuildMediaPayload(MediaUploadRequest request, MediaTransferRecord record)
     {
+        var payloadLength = record.EncryptedFileSize > 0 ? record.EncryptedFileSize : record.FileSize;
+        var videoSize = record.VideoSize > 0 ? record.VideoSize : payloadLength;
+
         return request.MediaType switch
         {
             MediaMessageType.Image => new
@@ -261,8 +276,9 @@ public sealed partial class WeixinBotDemoService
                     media = record.Media,
                     thumb_media = record.ThumbMedia,
                     aeskey = record.AesKey,
+                    aes_key = record.AesKey,
                     md5 = record.Md5,
-                    len = record.FileSize,
+                    len = payloadLength,
                     file_name = record.FileName,
                 },
             },
@@ -273,8 +289,9 @@ public sealed partial class WeixinBotDemoService
                 {
                     media = record.Media,
                     aeskey = record.AesKey,
+                    aes_key = record.AesKey,
                     md5 = record.Md5,
-                    len = record.FileSize,
+                    len = payloadLength,
                     encode_type = request.EncodeType,
                     playtime = request.PlayTimeMilliseconds,
                     text = request.Description,
@@ -288,10 +305,11 @@ public sealed partial class WeixinBotDemoService
                     media = record.Media,
                     thumb_media = record.ThumbMedia,
                     aeskey = record.AesKey,
+                    aes_key = record.AesKey,
                     md5 = record.Md5,
-                    len = record.FileSize,
+                    len = payloadLength,
                     file_name = record.FileName,
-                    video_size = record.FileSize,
+                    video_size = videoSize,
                 },
             },
             _ => new
@@ -301,9 +319,10 @@ public sealed partial class WeixinBotDemoService
                 {
                     media = record.Media,
                     aeskey = record.AesKey,
+                    aes_key = record.AesKey,
                     file_name = record.FileName,
                     md5 = record.Md5,
-                    len = record.FileSize,
+                    len = payloadLength,
                 },
             },
         };
@@ -354,6 +373,101 @@ public sealed partial class WeixinBotDemoService
     private static string FormatByteLength(long length)
     {
         return $"{length} B";
+    }
+
+    private async Task<string> PersistMediaTraceAsync(
+        MediaTransferRecord record,
+        DemoConfiguration configuration,
+        MediaUploadRequest request,
+        GetUploadUrlResult? uploadInfo,
+        UploadMediaResult? uploadResult,
+        SendMessageResult? sendResult,
+        Exception? exception,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var traceDirectory = EnsureDirectory(Path.Combine(environment.ContentRootPath, "App_Data", "media-trace"));
+            var fileName = $"{record.CreatedAt:yyyyMMddHHmmss}-{record.Id}-trace.json";
+            var fullPath = Path.Combine(traceDirectory, fileName);
+            var payload = new
+            {
+                generated_at = DateTimeOffset.UtcNow,
+                media_record = new
+                {
+                    record.Id,
+                    record.ExternalChatId,
+                    record.ContextToken,
+                    media_type = request.MediaType.ToString(),
+                    record.FileName,
+                    record.ContentType,
+                    plain_length = record.FileSize,
+                    encrypted_length = record.EncryptedFileSize,
+                    record.Md5,
+                    record.FileKey,
+                    record.DownloadParam,
+                    record.AesKey,
+                    record.TransferStatus,
+                    record.StatusMessage,
+                },
+                configuration = new
+                {
+                    configuration.BaseUrl,
+                    configuration.RouteTag,
+                    configuration.AccountId,
+                    configuration.UserId,
+                    configuration.ChannelVersion,
+                },
+                getuploadurl = uploadInfo is null
+                    ? null
+                    : new
+                    {
+                        request = uploadInfo.RequestPayload,
+                        response = uploadInfo.RawText,
+                        status_code = (int)uploadInfo.StatusCode,
+                    },
+                cdn_upload = uploadResult is null
+                    ? null
+                    : new
+                    {
+                        upload_url = uploadResult.UploadUrl,
+                        uploaded_length = uploadResult.UploadedLength,
+                        uploadResult.ContentType,
+                        response = uploadResult.RawText,
+                        status_code = (int)uploadResult.StatusCode,
+                    },
+                sendmessage = sendResult is null
+                    ? null
+                    : new
+                    {
+                        client_id = sendResult.ClientId,
+                        request = sendResult.RequestPayload,
+                        response = sendResult.RawText,
+                        status_code = (int)sendResult.StatusCode,
+                    },
+                error = exception is null
+                    ? null
+                    : new
+                    {
+                        type = exception.GetType().FullName,
+                        exception.Message,
+                        stack_trace = exception.StackTrace,
+                    },
+            };
+            var traceJsonOptions = new JsonSerializerOptions(JsonOptions)
+            {
+                WriteIndented = true,
+            };
+            var json = JsonSerializer.Serialize(payload, traceJsonOptions);
+            await File.WriteAllTextAsync(fullPath, json, cancellationToken);
+            await RecordBackgroundLogAsync("Info", $"媒体链路 Trace 已写入：{Path.GetFileName(fullPath)}");
+            return fullPath;
+        }
+        catch (Exception traceException) when (traceException is not OperationCanceledException)
+        {
+            logger.LogWarning(traceException, "Persist media trace failed.");
+            return string.Empty;
+        }
     }
 
     private static string GetMediaTypeLabel(MediaMessageType mediaType)

@@ -408,7 +408,7 @@ public sealed partial class WeixinBotDemoService
                 throw new InvalidOperationException("getuploadurl 未返回 upload_param。");
             }
 
-            return new GetUploadUrlResult(parsed.UploadParam.Trim(), rawText, response.StatusCode);
+            return new GetUploadUrlResult(parsed.UploadParam.Trim(), payload, rawText, response.StatusCode);
         }
 
         public async Task<UploadMediaResult> UploadEncryptedMediaAsync(
@@ -443,7 +443,7 @@ public sealed partial class WeixinBotDemoService
                 throw new InvalidOperationException("CDN 上传成功，但 download_param 为空。");
             }
 
-            return new UploadMediaResult(downloadParam, rawText, response.StatusCode);
+            return new UploadMediaResult(downloadParam, uploadUrl, encryptedBytes.LongLength, contentType, rawText, response.StatusCode);
         }
 
         public async Task<byte[]> DownloadEncryptedMediaAsync(string downloadParam, CancellationToken cancellationToken)
@@ -554,7 +554,7 @@ public sealed partial class WeixinBotDemoService
                     errorCode);
             }
 
-            return new SendMessageResult(clientId, rawText, response.StatusCode);
+            return new SendMessageResult(clientId, payload, rawText, response.StatusCode);
         }
 
         public async Task<SendMessageResult> SendMediaMessageAsync(
@@ -602,7 +602,7 @@ public sealed partial class WeixinBotDemoService
                     errorCode);
             }
 
-            return new SendMessageResult(clientId, rawText, response.StatusCode);
+            return new SendMessageResult(clientId, payload, rawText, response.StatusCode);
         }
 
     }
@@ -667,11 +667,11 @@ public sealed partial class WeixinBotDemoService
 
     private sealed record GetConfigResult(string TypingTicket, string RawText, System.Net.HttpStatusCode StatusCode);
 
-    private sealed record GetUploadUrlResult(string UploadParam, string RawText, System.Net.HttpStatusCode StatusCode);
+    private sealed record GetUploadUrlResult(string UploadParam, string RequestPayload, string RawText, System.Net.HttpStatusCode StatusCode);
 
-    private sealed record UploadMediaResult(string DownloadParam, string RawText, System.Net.HttpStatusCode StatusCode);
+    private sealed record UploadMediaResult(string DownloadParam, string UploadUrl, long UploadedLength, string ContentType, string RawText, System.Net.HttpStatusCode StatusCode);
 
-    private sealed record SendMessageResult(string ClientId, string RawText, System.Net.HttpStatusCode StatusCode);
+    private sealed record SendMessageResult(string ClientId, string RequestPayload, string RawText, System.Net.HttpStatusCode StatusCode);
 
     private class WeixinApiErrorResponse
     {

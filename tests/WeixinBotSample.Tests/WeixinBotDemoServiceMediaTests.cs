@@ -18,6 +18,7 @@ public sealed class WeixinBotDemoServiceMediaTests
     private static readonly MethodInfo EncryptMethod = ServiceType.GetMethod("EncryptAesEcb", BindingFlags.NonPublic | BindingFlags.Static)!;
     private static readonly MethodInfo DecryptMethod = ServiceType.GetMethod("DecryptAesEcb", BindingFlags.NonPublic | BindingFlags.Static)!;
     private static readonly MethodInfo TryBuildInboundMediaRecordMethod = ServiceType.GetMethod("TryBuildInboundMediaRecord", BindingFlags.NonPublic | BindingFlags.Static)!;
+    private static readonly MethodInfo BuildMediaPayloadMethod = ServiceType.GetMethod("BuildMediaPayload", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     [Fact]
     public void EncryptAesEcb_AndDecryptAesEcb_ShouldRoundTrip()
@@ -57,6 +58,7 @@ public sealed class WeixinBotDemoServiceMediaTests
             {
                 media = "download-param-001",
                 aeskey = "aes-key-001",
+                aes_key = "aes-key-001",
                 file_name = "demo.txt",
                 md5 = "abc123",
                 len = 128,
@@ -71,6 +73,7 @@ public sealed class WeixinBotDemoServiceMediaTests
         Assert.Equal(4, item.GetProperty("type").GetInt32());
         Assert.Equal("download-param-001", item.GetProperty("file_item").GetProperty("media").GetString());
         Assert.Equal("aes-key-001", item.GetProperty("file_item").GetProperty("aeskey").GetString());
+        Assert.Equal("aes-key-001", item.GetProperty("file_item").GetProperty("aes_key").GetString());
         Assert.Equal("demo.txt", item.GetProperty("file_item").GetProperty("file_name").GetString());
     }
 
@@ -95,6 +98,33 @@ public sealed class WeixinBotDemoServiceMediaTests
         Assert.Equal("demo-md5", json.RootElement.GetProperty("md5").GetString());
         Assert.Equal(2048L, json.RootElement.GetProperty("len").GetInt64());
         Assert.Equal("1.0.3", json.RootElement.GetProperty("base_info").GetProperty("channel_version").GetString());
+    }
+
+    [Fact]
+    public void BuildMediaPayload_ShouldUseEncryptedLengthAndBothAesKeyAliases()
+    {
+        var request = new MediaUploadRequest
+        {
+            MediaType = MediaMessageType.File,
+            FileName = "demo.txt",
+        };
+        var record = new MediaTransferRecord
+        {
+            Media = "download-param-001",
+            AesKey = "aes-key-001",
+            Md5 = "abc123",
+            FileName = "demo.txt",
+            FileSize = 17,
+            EncryptedFileSize = 32,
+        };
+
+        var payload = BuildMediaPayloadMethod.Invoke(null, [request, record])!;
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(payload));
+        var fileItem = json.RootElement.GetProperty("file_item");
+
+        Assert.Equal(32, fileItem.GetProperty("len").GetInt32());
+        Assert.Equal("aes-key-001", fileItem.GetProperty("aeskey").GetString());
+        Assert.Equal("aes-key-001", fileItem.GetProperty("aes_key").GetString());
     }
 
     [Fact]
