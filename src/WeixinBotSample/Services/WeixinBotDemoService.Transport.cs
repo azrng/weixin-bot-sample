@@ -107,6 +107,14 @@ public sealed partial class WeixinBotDemoService
     private static string NormalizeBaseUrl(string baseUrl)
         => string.IsNullOrWhiteSpace(baseUrl) ? DefaultBaseUrl : baseUrl.Trim().TrimEnd('/');
 
+    private static void ApplyBotHeaders(HttpRequestMessage request, DemoConfiguration configuration)
+    {
+        request.Headers.TryAddWithoutValidation("AuthorizationType", "ilink_bot_token");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", configuration.Token);
+        request.Headers.TryAddWithoutValidation("X-WECHAT-UIN", BuildWechatUin());
+        ApplyRouteTag(request.Headers, configuration.RouteTag);
+    }
+
     private static void ApplyRouteTag(HttpRequestHeaders headers, string routeTag)
     {
         if (!string.IsNullOrWhiteSpace(routeTag))
@@ -157,6 +165,26 @@ public sealed partial class WeixinBotDemoService
         return trimmed.Length <= maxLength ? trimmed : $"{trimmed[..maxLength]}...";
     }
 
+    private static (int? ErrorCode, string ErrorMessage) ParseApiError(string rawText)
+    {
+        if (string.IsNullOrWhiteSpace(rawText))
+        {
+            return (null, string.Empty);
+        }
+
+        try
+        {
+            var response = JsonSerializer.Deserialize<WeixinApiErrorResponse>(rawText, JsonOptions);
+            var errorCode = response?.ErrorCode ?? response?.ReturnCode;
+            var errorMessage = response?.ErrorMessage?.Trim() ?? string.Empty;
+            return (errorCode, errorMessage);
+        }
+        catch
+        {
+            return (null, string.Empty);
+        }
+    }
+
     private sealed record WeixinInboundTextMessage(
         string ExternalChatId,
         string ExternalUserId,
@@ -169,17 +197,21 @@ public sealed partial class WeixinBotDemoService
 
     private sealed class WeixinPollingClient(HttpClient httpClient, DemoConfiguration configuration)
     {
-        private readonly string _wechatUin = BuildWechatUin();
-
         public async Task<GetUpdatesResult> GetUpdatesAsync(string syncBuffer, int timeoutMilliseconds, CancellationToken cancellationToken)
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, $"{NormalizeBaseUrl(configuration.BaseUrl)}/ilink/bot/getupdates");
-            var payload = JsonSerializer.Serialize(new { get_updates_buf = syncBuffer ?? string.Empty }, JsonOptions);
+            var payload = JsonSerializer.Serialize(
+                new
+                {
+                    get_updates_buf = syncBuffer ?? string.Empty,
+                    base_info = new
+                    {
+                        channel_version = NormalizeChannelVersion(configuration.ChannelVersion),
+                    },
+                },
+                JsonOptions);
             request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
-            request.Headers.TryAddWithoutValidation("AuthorizationType", "ilink_bot_token");
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", configuration.Token);
-            request.Headers.TryAddWithoutValidation("X-WECHAT-UIN", _wechatUin);
-            ApplyRouteTag(request.Headers, configuration.RouteTag);
+            ApplyBotHeaders(request, configuration);
 
             using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutSource.CancelAfter(timeoutMilliseconds);
@@ -192,7 +224,96 @@ public sealed partial class WeixinBotDemoService
                 ? new GetUpdatesResponse()
                 : JsonSerializer.Deserialize<GetUpdatesResponse>(rawText, JsonOptions) ?? new GetUpdatesResponse();
 
+            var errorCode = parsed.ErrorCode ?? parsed.ReturnCode;
+            if ((errorCode ?? 0) != 0)
+            {
+                throw new WeixinApiException(
+                    string.IsNullOrWhiteSpace(parsed.ErrorMessage)
+                        ? $"微信 getupdates 返回异常：{errorCode}"
+                        : parsed.ErrorMessage,
+                    errorCode);
+            }
+
             return new GetUpdatesResult(parsed, rawText, response.StatusCode);
+        }
+
+        public async Task<GetConfigResult> GetConfigAsync(CancellationToken cancellationToken)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{NormalizeBaseUrl(configuration.BaseUrl)}/ilink/bot/getconfig");
+            var payload = JsonSerializer.Serialize(
+                new
+                {
+                    ilink_user_id = configuration.UserId,
+                    base_info = new
+                    {
+                        channel_version = NormalizeChannelVersion(configuration.ChannelVersion),
+                    },
+                },
+                JsonOptions);
+            request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+            ApplyBotHeaders(request, configuration);
+
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            var rawText = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(rawText)
+                    ? $"微信 getconfig 返回状态码 {(int)response.StatusCode}"
+                    : rawText);
+            }
+
+            var parsed = string.IsNullOrWhiteSpace(rawText)
+                ? new GetConfigResponse()
+                : JsonSerializer.Deserialize<GetConfigResponse>(rawText, JsonOptions) ?? new GetConfigResponse();
+            var errorCode = parsed.ErrorCode ?? parsed.ReturnCode;
+            if ((errorCode ?? 0) != 0)
+            {
+                throw new WeixinApiException(
+                    string.IsNullOrWhiteSpace(parsed.ErrorMessage)
+                        ? $"微信 getconfig 返回异常：{errorCode}"
+                        : parsed.ErrorMessage,
+                    errorCode);
+            }
+
+            return new GetConfigResult(parsed.TypingTicket?.Trim() ?? string.Empty, rawText, response.StatusCode);
+        }
+
+        public async Task SendTypingAsync(string ilinkUserId, string typingTicket, CancellationToken cancellationToken)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{NormalizeBaseUrl(configuration.BaseUrl)}/ilink/bot/sendtyping");
+            var payload = JsonSerializer.Serialize(
+                new
+                {
+                    ilink_user_id = ilinkUserId,
+                    typing_ticket = typingTicket,
+                    status = 1,
+                    base_info = new
+                    {
+                        channel_version = NormalizeChannelVersion(configuration.ChannelVersion),
+                    },
+                },
+                JsonOptions);
+            request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+            ApplyBotHeaders(request, configuration);
+
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            var rawText = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(rawText)
+                    ? $"微信 sendtyping 返回状态码 {(int)response.StatusCode}"
+                    : rawText);
+            }
+
+            var (errorCode, errorMessage) = ParseApiError(rawText);
+            if ((errorCode ?? 0) != 0)
+            {
+                throw new WeixinApiException(
+                    string.IsNullOrWhiteSpace(errorMessage)
+                        ? $"微信 sendtyping 返回异常：{errorCode}"
+                        : errorMessage,
+                    errorCode);
+            }
         }
 
         public async Task<SendMessageResult> SendTextMessageAsync(
@@ -229,10 +350,7 @@ public sealed partial class WeixinBotDemoService
                 },
                 JsonOptions);
             request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
-            request.Headers.TryAddWithoutValidation("AuthorizationType", "ilink_bot_token");
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", configuration.Token);
-            request.Headers.TryAddWithoutValidation("X-WECHAT-UIN", _wechatUin);
-            ApplyRouteTag(request.Headers, configuration.RouteTag);
+            ApplyBotHeaders(request, configuration);
 
             using var response = await httpClient.SendAsync(request, cancellationToken);
             var rawText = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -243,16 +361,27 @@ public sealed partial class WeixinBotDemoService
                     : rawText);
             }
 
+            var (errorCode, errorMessage) = ParseApiError(rawText);
+            if ((errorCode ?? 0) != 0)
+            {
+                throw new WeixinApiException(
+                    string.IsNullOrWhiteSpace(errorMessage)
+                        ? $"微信 sendmessage 返回异常：{errorCode}"
+                        : errorMessage,
+                    errorCode);
+            }
+
             return new SendMessageResult(clientId, rawText, response.StatusCode);
         }
 
-        private static string BuildWechatUin()
-        {
-            Span<byte> buffer = stackalloc byte[4];
-            RandomNumberGenerator.Fill(buffer);
-            var value = BitConverter.ToUInt32(buffer);
-            return Convert.ToBase64String(Encoding.UTF8.GetBytes(value.ToString()));
-        }
+    }
+
+    private static string BuildWechatUin()
+    {
+        Span<byte> buffer = stackalloc byte[4];
+        RandomNumberGenerator.Fill(buffer);
+        var value = BitConverter.ToUInt32(buffer);
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes(value.ToString()));
     }
 
     private sealed class WeixinQrCodeResponse
@@ -305,7 +434,27 @@ public sealed partial class WeixinBotDemoService
 
     private sealed record GetUpdatesResult(GetUpdatesResponse Response, string RawText, System.Net.HttpStatusCode StatusCode);
 
+    private sealed record GetConfigResult(string TypingTicket, string RawText, System.Net.HttpStatusCode StatusCode);
+
     private sealed record SendMessageResult(string ClientId, string RawText, System.Net.HttpStatusCode StatusCode);
+
+    private class WeixinApiErrorResponse
+    {
+        [JsonPropertyName("ret")]
+        public int? ReturnCode { get; set; }
+
+        [JsonPropertyName("errcode")]
+        public int? ErrorCode { get; set; }
+
+        [JsonPropertyName("errmsg")]
+        public string ErrorMessage { get; set; } = string.Empty;
+    }
+
+    private sealed class GetConfigResponse : WeixinApiErrorResponse
+    {
+        [JsonPropertyName("typing_ticket")]
+        public string? TypingTicket { get; set; }
+    }
 
     private sealed class WeixinInboundMessageEnvelope
     {

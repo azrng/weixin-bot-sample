@@ -20,6 +20,7 @@ public partial class Home : ComponentBase, IAsyncDisposable
     private bool _isBinding;
     private bool _isRuntimeWorking;
     private bool _isPushing;
+    private bool _isCheckingConnection;
     private bool _configurationDirty;
     private string _pageError = string.Empty;
     private string _saveButtonText => _isSaving ? "保存中..." : "保存配置";
@@ -132,6 +133,15 @@ public partial class Home : ComponentBase, IAsyncDisposable
             overwriteConfiguration: true);
     }
 
+    private async Task ValidateConnectionAsync()
+    {
+        await ExecuteBusyAsync(
+            () => DemoService.ValidateConnectionAsync(_refreshCancellation.Token),
+            () => _isCheckingConnection = true,
+            () => _isCheckingConnection = false,
+            overwriteConfiguration: true);
+    }
+
     private async Task ExecuteBusyAsync(Func<Task> action, Action begin, Action end, bool overwriteConfiguration)
     {
         _pageError = string.Empty;
@@ -199,11 +209,11 @@ public partial class Home : ComponentBase, IAsyncDisposable
 
     private void ApplyPushRequestDefaults(WeixinDemoState state)
     {
-        var currentMessage = state.Messages.FirstOrDefault(item =>
+        var currentContact = state.KnownContacts.FirstOrDefault(item =>
             !string.IsNullOrWhiteSpace(item.ExternalChatId) &&
-            !string.IsNullOrWhiteSpace(item.ContextToken));
-        var suggestedExternalChatId = currentMessage?.ExternalChatId ?? state.Configuration.LastExternalChatId;
-        var suggestedContextToken = currentMessage?.ContextToken ?? state.Configuration.LastContextToken;
+            !string.IsNullOrWhiteSpace(item.LatestContextToken));
+        var suggestedExternalChatId = currentContact?.ExternalChatId ?? state.Configuration.LastExternalChatId;
+        var suggestedContextToken = currentContact?.LatestContextToken ?? state.Configuration.LastContextToken;
 
         if (ShouldApplySuggestedValue(_pushRequest.ExternalChatId, _lastSuggestedExternalChatId))
         {
@@ -221,17 +231,23 @@ public partial class Home : ComponentBase, IAsyncDisposable
 
     private string GetPushTargetHint()
     {
-        var currentMessage = _state?.Messages.FirstOrDefault(item =>
+        var currentContact = _state?.KnownContacts.FirstOrDefault(item =>
             !string.IsNullOrWhiteSpace(item.ExternalChatId) &&
-            !string.IsNullOrWhiteSpace(item.ContextToken));
+            !string.IsNullOrWhiteSpace(item.LatestContextToken));
 
-        if (currentMessage is null)
+        if (currentContact is null)
         {
-            return "默认带入最近一次可回复的微信会话。";
+            return "默认带入最近一次可回复的联系人上下文。";
         }
 
-        var senderName = DisplayOrFallback(currentMessage.SenderName, currentMessage.ExternalUserId);
-        return $"默认带入当前微信用户：{senderName} / {currentMessage.ExternalChatId}";
+        var senderName = DisplayOrFallback(currentContact.SenderName, currentContact.ExternalUserId);
+        return $"默认带入当前微信用户：{senderName} / {currentContact.ExternalChatId}";
+    }
+
+    private void UseKnownContact(KnownContactSession contact)
+    {
+        _pushRequest.ExternalChatId = contact.ExternalChatId;
+        _pushRequest.ContextToken = contact.LatestContextToken;
     }
 
     private static bool ShouldApplySuggestedValue(string currentValue, string lastSuggestedValue)

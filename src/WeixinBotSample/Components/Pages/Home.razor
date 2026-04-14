@@ -74,9 +74,19 @@ else
                         <input class="form-control" @bind="_configurationModel.UserId" @bind:after="MarkConfigurationDirty" />
                     </label>
                     <div class="demo-field demo-field--hint">
+                        <span>协议版本</span>
+                        <strong>@DisplayOrFallback(_state?.Configuration.ChannelVersion, "1.0.3")</strong>
+                        <small>当前 Demo 按 iLink Bot 标准链路固定使用 `base_info.channel_version`。</small>
+                    </div>
+                    <div class="demo-field demo-field--hint">
                         <span>最近更新</span>
                         <strong>@FormatDateTime(_state?.Configuration.UpdatedAt)</strong>
                         <small>绑定成功后，Token / 账号 / 用户信息会自动回写到这里。</small>
+                    </div>
+                    <div class="demo-field demo-field--hint">
+                        <span>轮询游标</span>
+                        <strong>@DisplayOrFallback(_state?.Configuration.SyncCursor, "尚未建立")</strong>
+                        <small>`get_updates_buf` 会持久化保存，应用重启后可继续从上次位置接收消息。</small>
                     </div>
                 </div>
             </article>
@@ -157,6 +167,84 @@ else
                 </dl>
             </article>
 
+            <article class="demo-card">
+                <div class="demo-card__header">
+                    <div>
+                        <p class="demo-card__eyebrow">协议自检</p>
+                        <h2>连接与 Typing 状态</h2>
+                    </div>
+                    <button class="btn btn-outline-primary" @onclick="ValidateConnectionAsync" disabled="@_isCheckingConnection">
+                        @(_isCheckingConnection ? "检测中..." : "验证连接")
+                    </button>
+                </div>
+                <dl class="meta-list">
+                    <div>
+                        <dt>最近自检</dt>
+                        <dd>@FormatDateTime(_state?.LastConnectionCheck?.CheckedAt)</dd>
+                    </div>
+                    <div>
+                        <dt>自检结果</dt>
+                        <dd>@DisplayOrFallback(_state?.LastConnectionCheck?.Message, "尚未执行连接自检")</dd>
+                    </div>
+                    <div>
+                        <dt>Typing Ticket</dt>
+                        <dd>@DisplayOrFallback(_state?.Configuration.TypingTicket, "未获取")</dd>
+                    </div>
+                    <div>
+                        <dt>Ticket 更新时间</dt>
+                        <dd>@FormatDateTime(_state?.Configuration.TypingTicketUpdatedAt)</dd>
+                    </div>
+                </dl>
+            </article>
+
+            <article class="demo-card demo-card--wide">
+                <div class="demo-card__header">
+                    <div>
+                        <p class="demo-card__eyebrow">上下文缓存</p>
+                        <h2>已知联系人</h2>
+                    </div>
+                </div>
+                @if (_state?.KnownContacts.Count > 0)
+                {
+                    <div class="table-responsive">
+                        <table class="table demo-table">
+                            <thead>
+                                <tr>
+                                    <th>最近会话</th>
+                                    <th>联系人</th>
+                                    <th>ExternalChatId</th>
+                                    <th>ContextToken</th>
+                                    <th>最近消息</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var contact in _state.KnownContacts)
+                                {
+                                    <tr>
+                                        <td>@FormatDateTime(contact.LastMessageAt)</td>
+                                        <td>@DisplayOrFallback(contact.SenderName, contact.ExternalUserId)</td>
+                                        <td>@contact.ExternalChatId</td>
+                                        <td>@contact.LatestContextToken</td>
+                                        <td>@DisplayOrFallback(contact.LastMessageText, "-")</td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="@(() => UseKnownContact(contact))">带入推送</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="empty-block empty-block--compact">
+                        <div class="empty-block__icon">CTX</div>
+                        <p>收到用户消息后，这里会缓存最近联系人和 `context_token`，方便主动推送继续对话。</p>
+                    </div>
+                }
+            </article>
+
             <article class="demo-card demo-card--wide">
                 <div class="demo-card__header">
                     <div>
@@ -190,6 +278,15 @@ else
                         <p>@_state.LastPushResult.Message</p>
                         <small>发送时间：@FormatDateTime(_state.LastPushResult.SentAt)</small>
                         <small>响应摘要：@_state.LastPushResult.ResponseSummary</small>
+                    </div>
+                }
+
+                @if (_state?.LastConnectionCheck is not null && !string.IsNullOrWhiteSpace(_state.LastConnectionCheck.ResponseSummary))
+                {
+                    <div class="result-panel @( _state.LastConnectionCheck.Succeeded ? "result-panel--success" : "result-panel--error")">
+                        <p>@_state.LastConnectionCheck.Message</p>
+                        <small>最近自检时间：@FormatDateTime(_state.LastConnectionCheck.CheckedAt)</small>
+                        <small>响应摘要：@_state.LastConnectionCheck.ResponseSummary</small>
                     </div>
                 }
             </article>

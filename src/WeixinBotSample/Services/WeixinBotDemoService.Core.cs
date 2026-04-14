@@ -6,12 +6,17 @@ namespace WeixinBotSample.Services;
 public sealed partial class WeixinBotDemoService
 {
     private const string DefaultBaseUrl = "https://ilinkai.weixin.qq.com";
+    private const string DefaultChannelVersion = "1.0.3";
     private const string DefaultBotType = "3";
     private const int ActiveLoginTtlMilliseconds = 5 * 60 * 1000;
     private const int QrLongPollingTimeoutMilliseconds = 35_000;
     private const int DefaultPollDelayMilliseconds = 35_000;
+    private const int PollingRetryDelayMilliseconds = 2_000;
+    private const int PollingBackoffDelayMilliseconds = 30_000;
+    private const int PollingBackoffFailureThreshold = 3;
     private const int MaxLogEntries = 80;
     private const int MaxMessageEntries = 30;
+    private const int MaxKnownContactEntries = 20;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -46,6 +51,7 @@ public sealed partial class WeixinBotDemoService
         try
         {
             _state.Configuration.BaseUrl = NormalizeBaseUrl(configuration.BaseUrl);
+            _state.Configuration.ChannelVersion = NormalizeChannelVersion(configuration.ChannelVersion);
             _state.Configuration.RouteTag = configuration.RouteTag.Trim();
             _state.Configuration.Token = configuration.Token.Trim();
             _state.Configuration.AccountId = configuration.AccountId.Trim();
@@ -159,12 +165,23 @@ public sealed partial class WeixinBotDemoService
             throw new InvalidOperationException("主动推送需要填写 ExternalChatId、ContextToken 和消息内容。");
         }
 
+        SendMessageResult result;
         var client = new WeixinPollingClient(CreateClient(), configuration);
-        var result = await client.SendTextMessageAsync(
-            request.ExternalChatId.Trim(),
-            request.ContextToken.Trim(),
-            request.Content.Trim(),
-            cancellationToken);
+        try
+        {
+            configuration = await EnsureTypingTicketAsync(client, configuration, cancellationToken);
+            await TrySendTypingAsync(client, configuration, cancellationToken);
+            result = await client.SendTextMessageAsync(
+                request.ExternalChatId.Trim(),
+                request.ContextToken.Trim(),
+                request.Content.Trim(),
+                cancellationToken);
+        }
+        catch (WeixinApiException exception) when (exception.ErrorCode == -14)
+        {
+            await MarkSessionExpiredAsync("会话已过期，请重新扫码绑定。", CancellationToken.None);
+            throw new InvalidOperationException("会话已过期，请重新扫码绑定。", exception);
+        }
 
         await _gate.WaitAsync(cancellationToken);
         try
@@ -181,6 +198,16 @@ public sealed partial class WeixinBotDemoService
                 Content = request.Content.Trim(),
                 SentAt = DateTimeOffset.UtcNow,
             };
+            UpsertKnownContactNoLock(new WeixinMessageRecord
+            {
+                ExternalChatId = request.ExternalChatId.Trim(),
+                ExternalUserId = request.ExternalChatId.Trim(),
+                SenderName = request.ExternalChatId.Trim(),
+                ChatName = request.ExternalChatId.Trim(),
+                ContextToken = request.ContextToken.Trim(),
+                Text = request.Content.Trim(),
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
             RecordLogNoLock("Success", $"主动推送成功，目标会话 {request.ExternalChatId.Trim()}。");
             await PersistStateNoLockAsync(cancellationToken);
         }
@@ -251,6 +278,7 @@ public sealed partial class WeixinBotDemoService
                 _state.Messages = _state.Messages.Take(MaxMessageEntries).ToList();
             }
 
+            UpsertKnownContactNoLock(record);
             _state.LatestReplyText = record.ReplyText;
             await PersistStateNoLockAsync(cancellationToken);
         }
@@ -309,4 +337,43 @@ public sealed partial class WeixinBotDemoService
         client.Timeout = Timeout.InfiniteTimeSpan;
         return client;
     }
+
+    private void UpsertKnownContactNoLock(WeixinMessageRecord record)
+    {
+        if (string.IsNullOrWhiteSpace(record.ExternalChatId))
+        {
+            return;
+        }
+
+        var externalUserId = string.IsNullOrWhiteSpace(record.ExternalUserId)
+            ? record.ExternalChatId
+            : record.ExternalUserId.Trim();
+        var existing = _state.KnownContacts.FirstOrDefault(item =>
+            string.Equals(item.ExternalChatId, record.ExternalChatId, StringComparison.Ordinal) ||
+            string.Equals(item.ExternalUserId, externalUserId, StringComparison.Ordinal));
+
+        if (existing is null)
+        {
+            existing = new KnownContactSession();
+            _state.KnownContacts.Insert(0, existing);
+        }
+
+        existing.ExternalUserId = externalUserId;
+        existing.ExternalChatId = record.ExternalChatId.Trim();
+        existing.SenderName = record.SenderName.Trim();
+        existing.ChatName = record.ChatName.Trim();
+        existing.LatestContextToken = record.ContextToken.Trim();
+        existing.LastMessageText = record.Text.Trim();
+        existing.LastMessageAt = record.CreatedAt;
+        existing.UpdatedAt = DateTimeOffset.UtcNow;
+
+        _state.KnownContacts = _state.KnownContacts
+            .OrderByDescending(item => item.LastMessageAt)
+            .ThenByDescending(item => item.UpdatedAt)
+            .Take(MaxKnownContactEntries)
+            .ToList();
+    }
+
+    private static string NormalizeChannelVersion(string? value)
+        => string.IsNullOrWhiteSpace(value) ? DefaultChannelVersion : value.Trim();
 }

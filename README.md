@@ -11,7 +11,10 @@
 ## 功能特性
 
 - 扫码登录绑定微信账号
+- 连接自检与 Typing Ticket 获取
 - 轮询接收消息并记录
+- `get_updates_buf` 游标持久化
+- 已知联系人与 `context_token` 缓存
 - 自动回复与消息推送
 - 会话状态管理
 - 实时操作日志
@@ -39,6 +42,8 @@ dotnet run --project src/WeixinBotSample
 | Token | 认证令牌 |
 | AccountId | 账户 ID |
 | UserId | 用户 ID |
+
+应用会自动使用 `1.0.3` 作为 `base_info.channel_version`，并在连接自检成功后缓存 `typing_ticket`。
 
 ## 项目结构
 

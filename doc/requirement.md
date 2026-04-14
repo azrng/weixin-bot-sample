@@ -18,6 +18,7 @@
 - Demo 页面直接展示微信绑定、主动推送、入站消息与自动回复结果。
 - 用户在微信里给 Bot 发消息后，Bot 能返回固定祝福语。
 - 页面刷新后仍能看到最近配置、绑定状态、消息记录和推送记录。
+- Demo 协议细节尽可能贴近 `doc/iLinkBot协议.md`，包括标准鉴权头、连接自检、`get_updates_buf` 游标持久化、`context_token` 缓存与 `typing_ticket` 使用。
 
 ### 2.2 一期范围
 
@@ -27,9 +28,11 @@
 - 二维码绑定微信
 - 绑定状态展示
 - 启动监听与停止监听
+- 连接自检与 Typing Ticket 获取
 - 长轮询接收微信文本消息
 - 固定祝福语自动回复
 - 主动推送消息示例按钮
+- 已知联系人与上下文 token 缓存展示
 - 最近消息记录与操作日志展示
 - 基于本地文件的真实持久化
 
@@ -84,6 +87,14 @@
   - 启动监听
   - 停止监听
   - 展示当前运行状态和错误信息
+- 协议自检区
+  - 验证连接
+  - 展示最近自检结果
+  - 展示 Typing Ticket 与更新时间
+- 已知联系人区
+  - 展示最近联系人的 `ExternalChatId`
+  - 展示 `context_token`
+  - 支持一键带入主动推送表单
 - 主动推送区
   - 输入 `ExternalChatId`
   - 输入 `ContextToken`
@@ -125,9 +136,18 @@
 
 1. 演示操作员在主动推送区填写目标 `ExternalChatId`、`ContextToken` 和消息内容。
 2. 点击“推送演示消息”。
-3. 系统调用 iLink `sendmessage` 接口向指定用户或会话发送消息。
-4. 页面展示发送结果、响应摘要和发送时间。
-5. 推送记录写入本地日志并在页面可见。
+3. 系统优先调用 `getconfig` 获取 `typing_ticket`，并尝试发送 `sendtyping` 状态。
+4. 系统调用 iLink `sendmessage` 接口向指定用户或会话发送消息。
+5. 页面展示发送结果、响应摘要和发送时间。
+6. 推送记录写入本地日志并在页面可见。
+
+### 5.4 协议自检与上下文续聊流程
+
+1. 演示操作员点击“验证连接”。
+2. 系统调用 `getconfig` 校验当前 `bot_token` 是否仍可用，并获取 `typing_ticket`。
+3. 页面展示最近一次自检结果、Typing Ticket 与更新时间。
+4. 当系统收到用户消息时，会将 `ExternalChatId`、`SenderName`、`context_token` 与最近消息摘要写入已知联系人缓存。
+5. 操作员可直接从已知联系人列表带入推送目标，在应用重启后继续与已联系用户对话。
 
 ## 6. 关键数据与字段
 
@@ -148,6 +168,9 @@
 - `RuntimeError`
 - `RuntimeStartedAt`
 - `RuntimeStoppedAt`
+- `SyncCursor`
+- `TypingTicket`
+- `TypingTicketUpdatedAt`
 
 ### 6.3 绑定会话
 
@@ -171,6 +194,15 @@
 - `Direction`
 - `SendResult`
 
+### 6.5 已知联系人缓存
+
+- `ExternalUserId`
+- `ExternalChatId`
+- `SenderName`
+- `LatestContextToken`
+- `LastMessageText`
+- `LastMessageAt`
+
 ## 7. 可见范围
 
 - Demo 对外只提供一个演示页面。
@@ -183,8 +215,10 @@
 - 二维码过期时允许刷新重新生成。
 - 绑定轮询超时时给出失败说明，并保留重试入口。
 - `getupdates` 请求超时时，系统自动重试并记录日志。
+- 长轮询连续失败 3 次后进入 30 秒退避重试，避免持续高频请求。
 - 消息没有 `context_token` 时，不执行回包并记录原因。
 - `sendmessage` 失败时，页面展示错误详情且保留该条操作记录。
+- 若接口返回 `errcode = -14`，系统标记当前会话已过期，要求重新扫码绑定。
 - 页面加载不到配置或日志文件时，展示错误态并允许重试。
 
 ## 9. 非功能要求
@@ -193,6 +227,7 @@
 - 页面必须有 `loading`、`empty`、`error` 状态。
 - 所有按钮必须为真实可交互动作。
 - 刷新浏览器后仍能看到配置、绑定状态、最近消息与日志。
+- 刷新浏览器后仍能保留最近一次 `get_updates_buf` 与已知联系人的 `context_token` 缓存。
 - 优先复用 `OpenCowork` 中已验证的微信协议处理逻辑，避免重新猜测协议。
 
 ## 10. 已确认约束

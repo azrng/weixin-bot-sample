@@ -7,31 +7,28 @@ public sealed partial class WeixinBotDemoService
     private async Task RunPollingLoopAsync(DemoConfiguration configuration, CancellationToken cancellationToken)
     {
         var client = new WeixinPollingClient(CreateClient(), configuration);
-        var syncBuffer = string.Empty;
+        var syncBuffer = configuration.SyncCursor;
         var delay = DefaultPollDelayMilliseconds;
+        var consecutiveFailures = 0;
 
-        try
+        while (!cancellationToken.IsCancellationRequested)
         {
-            while (!cancellationToken.IsCancellationRequested)
+            try
             {
                 var pollResult = await client.GetUpdatesAsync(syncBuffer, delay + 5000, cancellationToken);
                 var response = pollResult.Response;
+                consecutiveFailures = 0;
 
                 if (!string.IsNullOrWhiteSpace(response.GetUpdatesBuffer))
                 {
                     syncBuffer = response.GetUpdatesBuffer;
+                    configuration.SyncCursor = syncBuffer;
+                    await UpdateSyncCursorAsync(syncBuffer, cancellationToken);
                 }
 
                 if (response.LongPollingTimeoutMilliseconds > 0)
                 {
                     delay = response.LongPollingTimeoutMilliseconds;
-                }
-
-                if ((response.ReturnCode ?? 0) != 0 || (response.ErrorCode ?? 0) > 0)
-                {
-                    throw new InvalidOperationException(string.IsNullOrWhiteSpace(response.ErrorMessage)
-                        ? $"微信 getupdates 返回异常：{response.ErrorCode ?? response.ReturnCode}"
-                        : response.ErrorMessage);
                 }
 
                 foreach (var message in response.Messages)
@@ -45,25 +42,29 @@ public sealed partial class WeixinBotDemoService
                     await HandleInboundMessageAsync(client, inbound, cancellationToken);
                 }
             }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception exception)
-        {
-            logger.LogError(exception, "Polling loop failed.");
-            await _gate.WaitAsync(CancellationToken.None);
-            try
+            catch (OperationCanceledException)
             {
-                _state.Configuration.RuntimeStatus = ChannelRuntimeStatus.Error;
-                _state.Configuration.RuntimeError = exception.Message;
-                _state.Configuration.RuntimeStoppedAt = DateTimeOffset.UtcNow;
-                RecordLogNoLock("Error", $"监听失败：{exception.Message}");
-                await PersistStateNoLockAsync(CancellationToken.None);
+                break;
             }
-            finally
+            catch (WeixinApiException exception) when (exception.ErrorCode == -14)
             {
-                _gate.Release();
+                logger.LogWarning(exception, "Polling loop stopped because the iLink session expired.");
+                await MarkSessionExpiredAsync($"会话已过期，请重新扫码绑定。{(string.IsNullOrWhiteSpace(exception.Message) ? string.Empty : $" 详情：{exception.Message}")}".Trim(), CancellationToken.None);
+                return;
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                logger.LogWarning(exception, "Polling loop encountered a recoverable error.");
+                consecutiveFailures++;
+                delay = DefaultPollDelayMilliseconds;
+                var retryDelay = consecutiveFailures >= PollingBackoffFailureThreshold
+                    ? PollingBackoffDelayMilliseconds
+                    : PollingRetryDelayMilliseconds;
+                var retryMode = consecutiveFailures >= PollingBackoffFailureThreshold
+                    ? "已进入 30 秒退避后重试"
+                    : "将短暂等待后重试";
+                await RecordBackgroundLogAsync("Warning", $"长轮询失败（第 {consecutiveFailures} 次）：{exception.Message}，{retryMode}。");
+                await Task.Delay(retryDelay, cancellationToken);
             }
         }
     }
@@ -73,6 +74,18 @@ public sealed partial class WeixinBotDemoService
         WeixinInboundTextMessage inbound,
         CancellationToken cancellationToken)
     {
+        DemoConfiguration configuration;
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            configuration = _state.Configuration.Clone();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        configuration = await EnsureTypingTicketAsync(client, configuration, cancellationToken);
         var replyText = fixedGreetingService.GetGreeting(inbound.Text);
         var messageRecord = new WeixinMessageRecord
         {
@@ -98,6 +111,7 @@ public sealed partial class WeixinBotDemoService
 
         try
         {
+            await TrySendTypingAsync(client, configuration, cancellationToken);
             var sendResult = await client.SendTextMessageAsync(
                 inbound.ExternalChatId,
                 inbound.ContextToken,
@@ -108,6 +122,13 @@ public sealed partial class WeixinBotDemoService
             messageRecord.ReplyStatus = $"已回复祝福语，状态码 {(int)sendResult.StatusCode}。";
             await PersistInboundRecordAsync(messageRecord, cancellationToken);
             await RecordBackgroundLogAsync("Success", $"收到 {inbound.SenderName} 的消息并成功回发祝福语。");
+        }
+        catch (WeixinApiException exception) when (exception.ErrorCode == -14)
+        {
+            messageRecord.ReplySucceeded = false;
+            messageRecord.ReplyStatus = "会话已过期，请重新扫码绑定。";
+            await PersistInboundRecordAsync(messageRecord, cancellationToken);
+            await MarkSessionExpiredAsync("会话已过期，请重新扫码绑定。", CancellationToken.None);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

@@ -8,9 +8,13 @@ public sealed class WeixinDemoState
 
     public List<WeixinMessageRecord> Messages { get; set; } = [];
 
+    public List<KnownContactSession> KnownContacts { get; set; } = [];
+
     public List<OperationLogEntry> Logs { get; set; } = [];
 
     public PushMessageResult? LastPushResult { get; set; }
+
+    public ConnectionCheckResult? LastConnectionCheck { get; set; }
 
     public string PrimaryGreeting { get; set; } = "祝您今天顺顺利利，万事如意。";
 
@@ -27,8 +31,10 @@ public sealed class WeixinDemoState
             Configuration = Configuration.Clone(),
             ActiveBindingSession = ActiveBindingSession?.Clone(),
             Messages = Messages.Select(item => item.Clone()).ToList(),
+            KnownContacts = KnownContacts.Select(item => item.Clone()).ToList(),
             Logs = Logs.Select(item => item.Clone()).ToList(),
             LastPushResult = LastPushResult?.Clone(),
+            LastConnectionCheck = LastConnectionCheck?.Clone(),
             PrimaryGreeting = PrimaryGreeting,
             LatestReplyText = LatestReplyText,
             LoadError = LoadError,

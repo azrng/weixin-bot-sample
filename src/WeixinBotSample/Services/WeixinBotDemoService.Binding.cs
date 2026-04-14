@@ -133,10 +133,21 @@ public sealed partial class WeixinBotDemoService
                             _state.Configuration.BaseUrl = string.IsNullOrWhiteSpace(status.BaseUrl)
                                 ? NormalizeBaseUrl(configuration.BaseUrl)
                                 : NormalizeBaseUrl(status.BaseUrl);
+                            _state.Configuration.ChannelVersion = NormalizeChannelVersion(configuration.ChannelVersion);
                             _state.Configuration.IsBound = !string.IsNullOrWhiteSpace(_state.Configuration.Token) &&
                                                            !string.IsNullOrWhiteSpace(_state.Configuration.AccountId);
                             _state.Configuration.BoundAccountName = _state.Configuration.AccountId;
+                            _state.Configuration.SyncCursor = string.Empty;
+                            _state.Configuration.TypingTicket = string.Empty;
+                            _state.Configuration.TypingTicketUpdatedAt = null;
+                            _state.Configuration.LastExternalChatId = string.Empty;
+                            _state.Configuration.LastContextToken = string.Empty;
                             _state.Configuration.UpdatedAt = DateTimeOffset.UtcNow;
+                            _state.Messages.Clear();
+                            _state.KnownContacts.Clear();
+                            _state.LastPushResult = null;
+                            _state.LastConnectionCheck = null;
+                            _state.LatestReplyText = string.Empty;
                             _state.ActiveBindingSession.Message = "绑定成功。";
                             RecordLogNoLock("Success", $"微信绑定成功，账号 {_state.Configuration.AccountId} 已接入。");
                             _state.ActiveBindingSession = null;

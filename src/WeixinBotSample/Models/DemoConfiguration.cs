@@ -4,6 +4,8 @@ public sealed class DemoConfiguration
 {
     public string BaseUrl { get; set; } = "https://ilinkai.weixin.qq.com";
 
+    public string ChannelVersion { get; set; } = "1.0.3";
+
     public string RouteTag { get; set; } = string.Empty;
 
     public string Token { get; set; } = string.Empty;
@@ -30,11 +32,18 @@ public sealed class DemoConfiguration
 
     public string LastContextToken { get; set; } = string.Empty;
 
+    public string SyncCursor { get; set; } = string.Empty;
+
+    public string TypingTicket { get; set; } = string.Empty;
+
+    public DateTimeOffset? TypingTicketUpdatedAt { get; set; }
+
     public DemoConfiguration Clone()
     {
         return new DemoConfiguration
         {
             BaseUrl = BaseUrl,
+            ChannelVersion = ChannelVersion,
             RouteTag = RouteTag,
             Token = Token,
             AccountId = AccountId,
@@ -48,6 +57,9 @@ public sealed class DemoConfiguration
             RuntimeStoppedAt = RuntimeStoppedAt,
             LastExternalChatId = LastExternalChatId,
             LastContextToken = LastContextToken,
+            SyncCursor = SyncCursor,
+            TypingTicket = TypingTicket,
+            TypingTicketUpdatedAt = TypingTicketUpdatedAt,
         };
     }
 }
