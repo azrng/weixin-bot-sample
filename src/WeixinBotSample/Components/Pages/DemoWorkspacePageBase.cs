@@ -37,6 +37,7 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
     protected string ActiveChecklistCode = string.Empty;
     protected bool ConfigurationDirty;
     protected string PageError = string.Empty;
+    protected string PushValidationMessage = string.Empty;
     protected string DismissedLoadError = string.Empty;
     protected string SaveButtonText => IsSaving ? "保存中..." : "保存配置";
 
@@ -77,6 +78,13 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
 
             ApplyPushRequestDefaults(state);
             await HandlePendingAutoFillAsync(state);
+            if (!string.IsNullOrWhiteSpace(PushRequest.ExternalChatId) &&
+                !string.IsNullOrWhiteSpace(PushRequest.ContextToken) &&
+                !string.IsNullOrWhiteSpace(PushRequest.Content))
+            {
+                PushValidationMessage = string.Empty;
+            }
+
             if (!string.Equals(DismissedLoadError, state.LoadError, StringComparison.Ordinal))
             {
                 DismissedLoadError = string.Empty;
@@ -146,6 +154,14 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
 
     protected async Task SendPushAsync()
     {
+        ClearFloatingError();
+        if (!TryValidatePushRequest(out var message))
+        {
+            PushValidationMessage = message;
+            return;
+        }
+
+        PushValidationMessage = string.Empty;
         await ExecuteBusyAsync(
             () => DemoService.SendPushMessageAsync(PushRequest, RefreshCancellation.Token),
             () => IsPushing = true,
@@ -300,6 +316,11 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
         PageError = string.Empty;
     }
 
+    protected void ClearPushValidationMessage()
+    {
+        PushValidationMessage = string.Empty;
+    }
+
     protected string GetRuntimeStatusText()
     {
         return State?.Configuration.RuntimeStatus switch
@@ -382,14 +403,20 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
     protected string GetPushFieldClass(string currentValue, string targetValue)
     {
         var baseClass = "form-control";
-        if (!HasActiveAutoFillPrompt() || string.IsNullOrWhiteSpace(targetValue))
+        var classNames = new List<string> { baseClass };
+        if (ShouldHighlightPushFieldAsMissing(currentValue))
         {
-            return baseClass;
+            classNames.Add("demo-input--missing");
         }
 
-        return string.Equals(currentValue.Trim(), targetValue.Trim(), StringComparison.Ordinal)
-            ? $"{baseClass} demo-input--autofill"
-            : baseClass;
+        if (HasActiveAutoFillPrompt() &&
+            !string.IsNullOrWhiteSpace(targetValue) &&
+            string.Equals(currentValue.Trim(), targetValue.Trim(), StringComparison.Ordinal))
+        {
+            classNames.Add("demo-input--autofill");
+        }
+
+        return string.Join(" ", classNames);
     }
 
     protected string GetAutoFillPromptTitle()
@@ -434,12 +461,30 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
         return $"默认带入当前微信用户：{senderName} / {currentContact.ExternalChatId}";
     }
 
+    protected bool ShouldShowPushReadinessNotice()
+    {
+        return !HasKnownPushTarget() &&
+               string.IsNullOrWhiteSpace(PushRequest.ExternalChatId) &&
+               string.IsNullOrWhiteSpace(PushRequest.ContextToken);
+    }
+
+    protected string GetPushReadinessNotice()
+    {
+        if (State?.Configuration.IsBound == true)
+        {
+            return "当前账号已绑定，但还没有可续聊的微信会话。请先启动监听，并让微信用户至少发来一条消息；系统拿到 ExternalChatId 和 ContextToken 后，就会自动带入到这里。";
+        }
+
+        return "请先完成微信绑定并启动监听，再让微信用户发来一条消息，系统拿到 ExternalChatId 和 ContextToken 后才能主动推送。";
+    }
+
     protected void UseKnownContact(KnownContactSession contact)
     {
         PushRequest.ExternalChatId = contact.ExternalChatId;
         PushRequest.ContextToken = contact.LatestContextToken;
         MediaRequest.ExternalChatId = contact.ExternalChatId;
         MediaRequest.ContextToken = contact.LatestContextToken;
+        PushValidationMessage = string.Empty;
     }
 
     private async Task HandlePendingAutoFillAsync(WeixinDemoState state)
@@ -574,6 +619,44 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
     {
         return string.IsNullOrWhiteSpace(currentValue) ||
                string.Equals(currentValue.Trim(), lastSuggestedValue, StringComparison.Ordinal);
+    }
+
+    private bool TryValidatePushRequest(out string message)
+    {
+        if (string.IsNullOrWhiteSpace(PushRequest.Content))
+        {
+            message = "请先填写要发送的消息内容。";
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(PushRequest.ExternalChatId) &&
+            !string.IsNullOrWhiteSpace(PushRequest.ContextToken))
+        {
+            message = string.Empty;
+            return true;
+        }
+
+        if (!HasKnownPushTarget())
+        {
+            message = GetPushReadinessNotice();
+            return false;
+        }
+
+        message = "请先从上方“已知联系人”点击“带入推送”，或手动补全 ExternalChatId 与 ContextToken。";
+        return false;
+    }
+
+    private bool HasKnownPushTarget()
+    {
+        return State?.KnownContacts.Any(item =>
+            !string.IsNullOrWhiteSpace(item.ExternalChatId) &&
+            !string.IsNullOrWhiteSpace(item.LatestContextToken)) == true;
+    }
+
+    private bool ShouldHighlightPushFieldAsMissing(string currentValue)
+    {
+        return !string.IsNullOrWhiteSpace(PushValidationMessage) &&
+               string.IsNullOrWhiteSpace(currentValue);
     }
 
     public async ValueTask DisposeAsync()

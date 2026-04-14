@@ -86,18 +86,32 @@
                 <small class="technical-value">ContextToken：@ActiveAutoFillPrompt!.ContextToken</small>
             </div>
         }
+        @if (ShouldShowPushReadinessNotice())
+        {
+            <div class="result-panel result-panel--warning">
+                <p><strong>主动推送前先准备会话目标</strong></p>
+                <small>@GetPushReadinessNotice()</small>
+            </div>
+        }
+        @if (!string.IsNullOrWhiteSpace(PushValidationMessage))
+        {
+            <div class="result-panel result-panel--error">
+                <p><strong>还不能直接推送</strong></p>
+                <small>@PushValidationMessage</small>
+            </div>
+        }
         <div class="demo-form-grid">
             <label class="demo-field">
                 <span>ExternalChatId</span>
-                <input class="@GetPushFieldClass(PushRequest.ExternalChatId, ActiveAutoFillPrompt?.ExternalChatId ?? string.Empty)" @bind="PushRequest.ExternalChatId" />
+                <input class="@GetPushFieldClass(PushRequest.ExternalChatId, ActiveAutoFillPrompt?.ExternalChatId ?? string.Empty)" @bind="PushRequest.ExternalChatId" @bind:after="ClearPushValidationMessage" />
             </label>
             <label class="demo-field">
                 <span>ContextToken</span>
-                <input class="@GetPushFieldClass(PushRequest.ContextToken, ActiveAutoFillPrompt?.ContextToken ?? string.Empty)" @bind="PushRequest.ContextToken" />
+                <input class="@GetPushFieldClass(PushRequest.ContextToken, ActiveAutoFillPrompt?.ContextToken ?? string.Empty)" @bind="PushRequest.ContextToken" @bind:after="ClearPushValidationMessage" />
             </label>
             <label class="demo-field demo-field--full">
                 <span>推送内容</span>
-                <textarea class="form-control demo-textarea" @bind="PushRequest.Content"></textarea>
+                <textarea class="@GetPushFieldClass(PushRequest.Content, string.Empty) demo-textarea" @bind="PushRequest.Content" @bind:after="ClearPushValidationMessage"></textarea>
             </label>
             <div class="demo-field demo-field--full demo-field--hint">
                 <span>默认目标</span>
