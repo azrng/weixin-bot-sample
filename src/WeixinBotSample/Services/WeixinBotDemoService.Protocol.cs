@@ -25,7 +25,25 @@ public sealed partial class WeixinBotDemoService
         }
 
         var client = new WeixinPollingClient(CreateClient(), configuration);
-        var configResult = await client.GetConfigAsync(cancellationToken);
+        GetConfigResult configResult;
+        try
+        {
+            configResult = await client.GetConfigAsync(cancellationToken);
+        }
+        catch (WeixinApiException exception) when (exception.ErrorCode == -14)
+        {
+            await MarkSessionExpiredAsync("会话已过期，请重新扫码绑定。", CancellationToken.None);
+            throw new InvalidOperationException("会话已过期，请重新扫码绑定。", exception);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException && IsTypingTicketUnsupported(exception.Message))
+        {
+            await MarkTypingCapabilityUnavailableAsync(
+                "连接已建立，但当前账号暂不支持 Typing Ticket，后续发送消息时会自动跳过“正在输入”状态。",
+                exception.Message,
+                cancellationToken);
+            return;
+        }
+
         var message = string.IsNullOrWhiteSpace(configResult.TypingTicket)
             ? "连接自检通过，但当前账号未返回 typing_ticket。"
             : "连接自检通过，已获取 typing_ticket。";
@@ -39,6 +57,7 @@ public sealed partial class WeixinBotDemoService
             {
                 Succeeded = true,
                 SessionExpired = false,
+                TypingCapabilityAvailable = true,
                 Message = message,
                 ResponseSummary = TruncateSingleLine(configResult.RawText, 280),
                 TypingTicket = configResult.TypingTicket,
@@ -70,7 +89,23 @@ public sealed partial class WeixinBotDemoService
             return configuration;
         }
 
-        var configResult = await client.GetConfigAsync(cancellationToken);
+        GetConfigResult configResult;
+        try
+        {
+            configResult = await client.GetConfigAsync(cancellationToken);
+        }
+        catch (WeixinApiException exception) when (exception.ErrorCode == -14)
+        {
+            await MarkSessionExpiredAsync("会话已过期，请重新扫码绑定。", CancellationToken.None);
+            throw;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException && IsTypingTicketUnsupported(exception.Message))
+        {
+            return await MarkTypingCapabilityUnavailableAsync(
+                "当前账号暂不支持 Typing Ticket，后续发送消息时会自动跳过“正在输入”状态。",
+                exception.Message,
+                cancellationToken);
+        }
 
         await _gate.WaitAsync(cancellationToken);
         try
@@ -81,6 +116,7 @@ public sealed partial class WeixinBotDemoService
             {
                 Succeeded = true,
                 SessionExpired = false,
+                TypingCapabilityAvailable = true,
                 Message = string.IsNullOrWhiteSpace(configResult.TypingTicket)
                     ? "已刷新配置，但接口未返回 typing_ticket。"
                     : "已刷新 typing_ticket。",
@@ -164,6 +200,7 @@ public sealed partial class WeixinBotDemoService
             {
                 Succeeded = false,
                 SessionExpired = true,
+                TypingCapabilityAvailable = !string.IsNullOrWhiteSpace(_state.Configuration.TypingTicket),
                 Message = message,
                 ResponseSummary = string.Empty,
                 TypingTicket = _state.Configuration.TypingTicket,
@@ -176,6 +213,48 @@ public sealed partial class WeixinBotDemoService
         {
             _gate.Release();
         }
+    }
+
+    private async Task<DemoConfiguration> MarkTypingCapabilityUnavailableAsync(
+        string userMessage,
+        string responseSummary,
+        CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            _state.Configuration.TypingTicket = string.Empty;
+            _state.Configuration.TypingTicketUpdatedAt = DateTimeOffset.UtcNow;
+            _state.LastConnectionCheck = new ConnectionCheckResult
+            {
+                Succeeded = true,
+                SessionExpired = false,
+                TypingCapabilityAvailable = false,
+                Message = userMessage,
+                ResponseSummary = TruncateSingleLine(responseSummary, 280),
+                TypingTicket = string.Empty,
+                CheckedAt = DateTimeOffset.UtcNow,
+            };
+            RecordLogNoLock("Warning", userMessage);
+            await PersistStateNoLockAsync(cancellationToken);
+            return _state.Configuration.Clone();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private static bool IsTypingTicketUnsupported(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.Contains("GetTypingTicket rpc failed", StringComparison.OrdinalIgnoreCase) ||
+               (message.Contains("typing_ticket", StringComparison.OrdinalIgnoreCase) &&
+                message.Contains("rpc failed", StringComparison.OrdinalIgnoreCase));
     }
 
     private sealed class WeixinApiException(string message, int? errorCode = null) : InvalidOperationException(message)

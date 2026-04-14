@@ -114,3 +114,5 @@
   - 2026-04-14：根据真实联调反馈，修复媒体上传 `getuploadurl errcode=-2` 的长度参数问题，改为按 AES 加密后的密文长度申请上传参数；同时将页面错误提示改为固定浮层弹框，并重新通过编译、测试与首页 smoke test。
   - 2026-04-14：继续根据联调反馈排查媒体消息发送失败，准备同步修正媒体报文字段并把单页演示台拆为左侧导航的多页面结构。
   - 2026-04-14：已完成媒体结构字段补强与工作台拆页，新增总览/消息/媒体/联调四个页面；补充媒体链路 Trace 落盘能力，并在清理运行占用后重新通过 `dotnet build`、`dotnet test` 与四个工作台页面的 smoke test。
+  - 2026-04-14：用户反馈“验证连接”出现 `GetTypingTicket rpc failed`，开始把 `typing_ticket` 获取失败改为可降级的账号能力提示，避免右上角直接报操作失败。
+  - 2026-04-14：已完成 Typing Ticket 不支持场景的降级处理，`GetTypingTicket rpc failed` 现在会记为“连接可用但账号不支持 Typing 能力”；新增识别单测并重新通过 `dotnet build`、`dotnet test` 与 `/`、`/checklist` smoke test。

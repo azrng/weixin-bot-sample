@@ -10,6 +10,7 @@ public sealed class WeixinBotDemoServiceTransportTests
     private static readonly Type ItemType = ServiceType.GetNestedType("WeixinMessageItem", BindingFlags.NonPublic)!;
     private static readonly Type TextItemType = ServiceType.GetNestedType("WeixinTextItem", BindingFlags.NonPublic)!;
     private static readonly MethodInfo TryBuildInboundTextMessageMethod = ServiceType.GetMethod("TryBuildInboundTextMessage", BindingFlags.NonPublic | BindingFlags.Static)!;
+    private static readonly MethodInfo IsTypingTicketUnsupportedMethod = ServiceType.GetMethod("IsTypingTicketUnsupported", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     [Fact]
     public void TryBuildInboundTextMessage_WhenWeChatUsesMessageTypeOne_StillBuildsReplyContext()
@@ -43,6 +44,18 @@ public sealed class WeixinBotDemoServiceTransportTests
         Assert.False(succeeded);
         Assert.Null(parameters[1]);
         Assert.Equal("message_type=3，消息中没有文本内容", parameters[2]);
+    }
+
+    [Theory]
+    [InlineData("GetTypingTicket rpc failed", true)]
+    [InlineData("{\"errmsg\":\"GetTypingTicket rpc failed\"}", true)]
+    [InlineData("微信 getconfig 返回异常：-14", false)]
+    [InlineData("", false)]
+    public void IsTypingTicketUnsupported_ShouldDetectKnownTypingFallbackMessage(string message, bool expected)
+    {
+        var actual = (bool)IsTypingTicketUnsupportedMethod.Invoke(null, [message])!;
+
+        Assert.Equal(expected, actual);
     }
 
     private static object CreateEnvelope(int messageType, string text, string contextToken)

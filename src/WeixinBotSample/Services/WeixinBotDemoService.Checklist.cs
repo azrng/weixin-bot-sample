@@ -90,6 +90,16 @@ public sealed partial class WeixinBotDemoService
 
     private static ChecklistEvaluationResult EvaluateTypingChecklist(WeixinDemoState state)
     {
+        if (state.LastConnectionCheck is not null &&
+            state.LastConnectionCheck.Succeeded &&
+            !state.LastConnectionCheck.TypingCapabilityAvailable)
+        {
+            return new ChecklistEvaluationResult(
+                ChecklistItemStatus.Blocked,
+                "当前账号暂不支持 Typing Ticket，系统已降级跳过 sendtyping。",
+                state.LastConnectionCheck.Message);
+        }
+
         if (!string.IsNullOrWhiteSpace(state.Configuration.TypingTicket) && state.LastConnectionCheck?.Succeeded == true)
         {
             return new ChecklistEvaluationResult(

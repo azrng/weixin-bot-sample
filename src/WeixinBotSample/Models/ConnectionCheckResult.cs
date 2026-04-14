@@ -6,6 +6,8 @@ public sealed class ConnectionCheckResult
 
     public bool SessionExpired { get; set; }
 
+    public bool TypingCapabilityAvailable { get; set; } = true;
+
     public string Message { get; set; } = string.Empty;
 
     public string ResponseSummary { get; set; } = string.Empty;
@@ -20,6 +22,7 @@ public sealed class ConnectionCheckResult
         {
             Succeeded = Succeeded,
             SessionExpired = SessionExpired,
+            TypingCapabilityAvailable = TypingCapabilityAvailable,
             Message = Message,
             ResponseSummary = ResponseSummary,
             TypingTicket = TypingTicket,
