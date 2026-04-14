@@ -77,14 +77,23 @@
                 @(IsPushing ? "发送中..." : "推送演示消息")
             </button>
         </div>
+        @if (HasActiveAutoFillPrompt())
+        {
+            <div class="autofill-banner">
+                <strong>@GetAutoFillPromptTitle()</strong>
+                <p>@GetAutoFillPromptMessage()</p>
+                <small class="technical-value">ExternalChatId：@ActiveAutoFillPrompt!.ExternalChatId</small>
+                <small class="technical-value">ContextToken：@ActiveAutoFillPrompt!.ContextToken</small>
+            </div>
+        }
         <div class="demo-form-grid">
             <label class="demo-field">
                 <span>ExternalChatId</span>
-                <input class="form-control" @bind="PushRequest.ExternalChatId" />
+                <input class="@GetPushFieldClass(PushRequest.ExternalChatId, ActiveAutoFillPrompt?.ExternalChatId ?? string.Empty)" @bind="PushRequest.ExternalChatId" />
             </label>
             <label class="demo-field">
                 <span>ContextToken</span>
-                <input class="form-control" @bind="PushRequest.ContextToken" />
+                <input class="@GetPushFieldClass(PushRequest.ContextToken, ActiveAutoFillPrompt?.ContextToken ?? string.Empty)" @bind="PushRequest.ContextToken" />
             </label>
             <label class="demo-field demo-field--full">
                 <span>推送内容</span>

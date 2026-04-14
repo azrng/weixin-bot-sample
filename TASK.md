@@ -117,3 +117,5 @@
   - 2026-04-14：用户反馈“验证连接”出现 `GetTypingTicket rpc failed`，开始把 `typing_ticket` 获取失败改为可降级的账号能力提示，避免右上角直接报操作失败。
   - 2026-04-14：已完成 Typing Ticket 不支持场景的降级处理，`GetTypingTicket rpc failed` 现在会记为“连接可用但账号不支持 Typing 能力”；新增识别单测并重新通过 `dotnet build`、`dotnet test` 与 `/`、`/checklist` smoke test。
   - 2026-04-14：根据用户反馈，优化消息页默认带入逻辑；同一 Bot 账号重新绑定时不再清空最近联系人和上次会话字段，并在“已绑定但暂无上下文”时给出明确提示；已重新通过 `dotnet build` 与 `dotnet test`。
+  - 2026-04-14：继续处理“收到新会话后自动跳转消息页并高亮带入目标”的在制改动，当前已恢复上下文并进入校验收口阶段，任务状态切回 DOING。
+  - 2026-04-14：已完成最近会话自动带入提示，新增待处理自动填充状态、消息页高亮提示与对应单测；重新通过 `dotnet build`、`dotnet test` 与 `/`、`/messages`、`/media`、`/checklist` smoke test，任务回到 REVIEW。

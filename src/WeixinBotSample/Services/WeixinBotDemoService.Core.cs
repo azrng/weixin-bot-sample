@@ -218,6 +218,27 @@ public sealed partial class WeixinBotDemoService
         }
     }
 
+    public async Task ClearPendingAutoFillAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureInitializedAsync(cancellationToken);
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_state.PendingAutoFill is null)
+            {
+                return;
+            }
+
+            _state.PendingAutoFill = null;
+            await PersistStateNoLockAsync(cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     private async Task EnsureInitializedAsync(CancellationToken cancellationToken)
     {
         if (_initialized)
@@ -272,6 +293,21 @@ public sealed partial class WeixinBotDemoService
         await _gate.WaitAsync(cancellationToken);
         try
         {
+            var existingContact = FindKnownContactNoLock(record.ExternalChatId, record.ExternalUserId);
+            if (ShouldQueueAutoFillPrompt(existingContact, record))
+            {
+                _state.PendingAutoFill = new AutoFillPromptState
+                {
+                    ExternalChatId = record.ExternalChatId.Trim(),
+                    ContextToken = record.ContextToken.Trim(),
+                    SenderName = record.SenderName.Trim(),
+                    Summary = string.IsNullOrWhiteSpace(record.Text)
+                        ? "收到新的可回复会话，已为消息页准备好目标。"
+                        : $"收到新消息：{TruncateSingleLine(record.Text, 48)}",
+                    TriggeredAt = DateTimeOffset.UtcNow,
+                };
+            }
+
             _state.Configuration.LastExternalChatId = record.ExternalChatId;
             _state.Configuration.LastContextToken = record.ContextToken;
             _state.Messages.Insert(0, record);
@@ -365,9 +401,7 @@ public sealed partial class WeixinBotDemoService
         var externalUserId = string.IsNullOrWhiteSpace(record.ExternalUserId)
             ? record.ExternalChatId
             : record.ExternalUserId.Trim();
-        var existing = _state.KnownContacts.FirstOrDefault(item =>
-            string.Equals(item.ExternalChatId, record.ExternalChatId, StringComparison.Ordinal) ||
-            string.Equals(item.ExternalUserId, externalUserId, StringComparison.Ordinal));
+        var existing = FindKnownContactNoLock(record.ExternalChatId, externalUserId);
 
         if (existing is null)
         {
@@ -389,6 +423,38 @@ public sealed partial class WeixinBotDemoService
             .ThenByDescending(item => item.UpdatedAt)
             .Take(MaxKnownContactEntries)
             .ToList();
+    }
+
+    private KnownContactSession? FindKnownContactNoLock(string externalChatId, string externalUserId)
+    {
+        if (string.IsNullOrWhiteSpace(externalChatId) && string.IsNullOrWhiteSpace(externalUserId))
+        {
+            return null;
+        }
+
+        var normalizedChatId = externalChatId.Trim();
+        var normalizedUserId = externalUserId.Trim();
+
+        return _state.KnownContacts.FirstOrDefault(item =>
+            (!string.IsNullOrWhiteSpace(normalizedChatId) &&
+             string.Equals(item.ExternalChatId, normalizedChatId, StringComparison.Ordinal)) ||
+            (!string.IsNullOrWhiteSpace(normalizedUserId) &&
+             string.Equals(item.ExternalUserId, normalizedUserId, StringComparison.Ordinal)));
+    }
+
+    private static bool ShouldQueueAutoFillPrompt(KnownContactSession? existingContact, WeixinMessageRecord record)
+    {
+        if (string.IsNullOrWhiteSpace(record.ExternalChatId) || string.IsNullOrWhiteSpace(record.ContextToken))
+        {
+            return false;
+        }
+
+        if (existingContact is null)
+        {
+            return true;
+        }
+
+        return !string.Equals(existingContact.LatestContextToken, record.ContextToken.Trim(), StringComparison.Ordinal);
     }
 
     private void UpsertMediaRecordNoLock(MediaTransferRecord record)

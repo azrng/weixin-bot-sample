@@ -345,6 +345,34 @@ body {
     color: var(--bs-secondary-color);
 }
 
+.autofill-banner {
+    display: grid;
+    gap: 0.45rem;
+    margin-bottom: 1rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid rgba(25, 135, 84, 0.24);
+    border-radius: 1rem;
+    background: rgba(25, 135, 84, 0.08);
+}
+
+.autofill-banner strong,
+.autofill-banner p,
+.autofill-banner small {
+    margin: 0;
+}
+
+.demo-input--autofill {
+    border-color: rgba(25, 135, 84, 0.48);
+    box-shadow: 0 0 0 0.25rem rgba(25, 135, 84, 0.14);
+    background: rgba(25, 135, 84, 0.05);
+}
+
+.demo-input--autofill:focus {
+    border-color: rgba(25, 135, 84, 0.62);
+    box-shadow: 0 0 0 0.25rem rgba(25, 135, 84, 0.18);
+    background: rgba(25, 135, 84, 0.07);
+}
+
 .demo-textarea {
     min-height: 6rem;
     resize: vertical;

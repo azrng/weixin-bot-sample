@@ -150,6 +150,7 @@ public sealed partial class WeixinBotDemoService
                                 _state.KnownContacts.Clear();
                                 _state.LastPushResult = null;
                                 _state.LastConnectionCheck = null;
+                                _state.PendingAutoFill = null;
                                 _state.LatestReplyText = string.Empty;
                             }
                             _state.ActiveBindingSession.Message = "绑定成功。";

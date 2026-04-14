@@ -20,6 +20,8 @@ public sealed class WeixinDemoState
 
     public ConnectionCheckResult? LastConnectionCheck { get; set; }
 
+    public AutoFillPromptState? PendingAutoFill { get; set; }
+
     public string PrimaryGreeting { get; set; } = "祝您今天顺顺利利，万事如意。";
 
     public string LatestReplyText { get; set; } = string.Empty;
@@ -41,6 +43,7 @@ public sealed class WeixinDemoState
             Logs = Logs.Select(item => item.Clone()).ToList(),
             LastPushResult = LastPushResult?.Clone(),
             LastConnectionCheck = LastConnectionCheck?.Clone(),
+            PendingAutoFill = PendingAutoFill?.Clone(),
             PrimaryGreeting = PrimaryGreeting,
             LatestReplyText = LatestReplyText,
             LoadError = LoadError,

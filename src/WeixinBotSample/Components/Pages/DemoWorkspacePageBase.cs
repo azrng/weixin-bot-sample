@@ -10,8 +10,12 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
     [Inject]
     protected WeixinBotDemoService DemoService { get; set; } = default!;
 
+    [Inject]
+    protected NavigationManager Navigation { get; set; } = default!;
+
     protected readonly CancellationTokenSource RefreshCancellation = new();
     protected WeixinDemoState? State;
+    protected AutoFillPromptState? ActiveAutoFillPrompt;
     protected DemoConfiguration ConfigurationModel = new();
     protected PushMessageRequest PushRequest = new();
     protected MediaUploadRequest MediaRequest = new();
@@ -72,6 +76,7 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
             }
 
             ApplyPushRequestDefaults(state);
+            await HandlePendingAutoFillAsync(state);
             if (!string.Equals(DismissedLoadError, state.LoadError, StringComparison.Ordinal))
             {
                 DismissedLoadError = string.Empty;
@@ -369,6 +374,45 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
         LastSuggestedContextToken = suggestedContextToken;
     }
 
+    protected bool HasActiveAutoFillPrompt()
+    {
+        return ActiveAutoFillPrompt?.HasTarget == true;
+    }
+
+    protected string GetPushFieldClass(string currentValue, string targetValue)
+    {
+        var baseClass = "form-control";
+        if (!HasActiveAutoFillPrompt() || string.IsNullOrWhiteSpace(targetValue))
+        {
+            return baseClass;
+        }
+
+        return string.Equals(currentValue.Trim(), targetValue.Trim(), StringComparison.Ordinal)
+            ? $"{baseClass} demo-input--autofill"
+            : baseClass;
+    }
+
+    protected string GetAutoFillPromptTitle()
+    {
+        if (!HasActiveAutoFillPrompt())
+        {
+            return string.Empty;
+        }
+
+        var senderName = DisplayOrFallback(ActiveAutoFillPrompt!.SenderName, ActiveAutoFillPrompt.ExternalChatId);
+        return $"已自动带入最近会话目标：{senderName}";
+    }
+
+    protected string GetAutoFillPromptMessage()
+    {
+        if (!HasActiveAutoFillPrompt())
+        {
+            return string.Empty;
+        }
+
+        return $"{DisplayOrFallback(ActiveAutoFillPrompt!.Summary, "收到新的可回复会话。")} 现在可以直接发送主动消息。";
+    }
+
     protected string GetPushTargetHint()
     {
         var currentContact = State?.KnownContacts.FirstOrDefault(item =>
@@ -396,6 +440,36 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
         PushRequest.ContextToken = contact.LatestContextToken;
         MediaRequest.ExternalChatId = contact.ExternalChatId;
         MediaRequest.ContextToken = contact.LatestContextToken;
+    }
+
+    private async Task HandlePendingAutoFillAsync(WeixinDemoState state)
+    {
+        if (state.PendingAutoFill?.HasTarget != true)
+        {
+            return;
+        }
+
+        var currentPath = GetCurrentPath();
+        if (!string.Equals(currentPath, "/messages", StringComparison.OrdinalIgnoreCase))
+        {
+            Navigation.NavigateTo("/messages");
+            return;
+        }
+
+        ActiveAutoFillPrompt = state.PendingAutoFill.Clone();
+        await DemoService.ClearPendingAutoFillAsync(RefreshCancellation.Token);
+    }
+
+    private string GetCurrentPath()
+    {
+        var relativePath = Navigation.ToBaseRelativePath(Navigation.Uri);
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return "/";
+        }
+
+        var cleanPath = relativePath.Split('?', '#')[0].Trim('/');
+        return string.IsNullOrWhiteSpace(cleanPath) ? "/" : $"/{cleanPath}";
     }
 
     protected string FormatFileSize(long bytes)

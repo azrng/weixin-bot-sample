@@ -1,4 +1,5 @@
 using System.Reflection;
+using WeixinBotSample.Models;
 using WeixinBotSample.Services;
 
 namespace WeixinBotSample.Tests;
@@ -12,6 +13,7 @@ public sealed class WeixinBotDemoServiceTransportTests
     private static readonly MethodInfo TryBuildInboundTextMessageMethod = ServiceType.GetMethod("TryBuildInboundTextMessage", BindingFlags.NonPublic | BindingFlags.Static)!;
     private static readonly MethodInfo IsTypingTicketUnsupportedMethod = ServiceType.GetMethod("IsTypingTicketUnsupported", BindingFlags.NonPublic | BindingFlags.Static)!;
     private static readonly MethodInfo ShouldResetConversationContextMethod = ServiceType.GetMethod("ShouldResetConversationContext", BindingFlags.NonPublic | BindingFlags.Static)!;
+    private static readonly MethodInfo ShouldQueueAutoFillPromptMethod = ServiceType.GetMethod("ShouldQueueAutoFillPrompt", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     [Fact]
     public void TryBuildInboundTextMessage_WhenWeChatUsesMessageTypeOne_StillBuildsReplyContext()
@@ -97,6 +99,60 @@ public sealed class WeixinBotDemoServiceTransportTests
         var actual = (bool)ShouldResetConversationContextMethod.Invoke(null, [previous, current])!;
 
         Assert.True(actual);
+    }
+
+    [Fact]
+    public void ShouldQueueAutoFillPrompt_WhenFirstReplyableConversationArrives_ShouldReturnTrue()
+    {
+        var record = new WeixinMessageRecord
+        {
+            ExternalChatId = "wx-user-001",
+            ExternalUserId = "wx-user-001",
+            ContextToken = "ctx-001",
+            Text = "你好",
+        };
+
+        var actual = (bool)ShouldQueueAutoFillPromptMethod.Invoke(null, [null, record])!;
+
+        Assert.True(actual);
+    }
+
+    [Fact]
+    public void ShouldQueueAutoFillPrompt_WhenContextTokenHasNotChanged_ShouldReturnFalse()
+    {
+        var existing = new KnownContactSession
+        {
+            ExternalChatId = "wx-user-001",
+            ExternalUserId = "wx-user-001",
+            LatestContextToken = "ctx-001",
+        };
+        var record = new WeixinMessageRecord
+        {
+            ExternalChatId = "wx-user-001",
+            ExternalUserId = "wx-user-001",
+            ContextToken = "ctx-001",
+            Text = "再次发来消息",
+        };
+
+        var actual = (bool)ShouldQueueAutoFillPromptMethod.Invoke(null, [existing, record])!;
+
+        Assert.False(actual);
+    }
+
+    [Fact]
+    public void ShouldQueueAutoFillPrompt_WhenContextTokenMissing_ShouldReturnFalse()
+    {
+        var record = new WeixinMessageRecord
+        {
+            ExternalChatId = "wx-user-001",
+            ExternalUserId = "wx-user-001",
+            ContextToken = string.Empty,
+            Text = "没有上下文",
+        };
+
+        var actual = (bool)ShouldQueueAutoFillPromptMethod.Invoke(null, [null, record])!;
+
+        Assert.False(actual);
     }
 
     private static object CreateEnvelope(int messageType, string text, string contextToken)
