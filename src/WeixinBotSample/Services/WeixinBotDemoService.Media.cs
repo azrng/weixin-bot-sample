@@ -69,18 +69,19 @@ public sealed partial class WeixinBotDemoService
 
             record.Md5 = Convert.ToHexStringLower(MD5.HashData(fileContent));
             record.FileKey = BuildFileKey(request.FileName);
-            record.TransferStatus = MediaTransferStatus.Encrypting;
-            record.StatusMessage = "已计算文件摘要，开始加密媒体内容。";
-            await PersistMediaRecordAsync(record, cancellationToken);
-
-            var uploadInfo = await client.GetUploadUrlAsync(record.FileKey, record.Md5, fileContent.Length, cancellationToken);
             var aesKeyBytes = RandomNumberGenerator.GetBytes(16);
             var aesKey = Convert.ToBase64String(aesKeyBytes);
             var encryptedBytes = EncryptAesEcb(fileContent, aesKeyBytes);
+            var encryptedLength = encryptedBytes.Length;
 
             record.AesKey = aesKey;
+            record.TransferStatus = MediaTransferStatus.Encrypting;
+            record.StatusMessage = $"已完成 AES 加密，准备申请上传参数。明文 {FormatByteLength(fileContent.Length)} / 密文 {FormatByteLength(encryptedLength)}。";
+            await PersistMediaRecordAsync(record, cancellationToken);
+
+            var uploadInfo = await client.GetUploadUrlAsync(record.FileKey, record.Md5, encryptedLength, cancellationToken);
             record.TransferStatus = MediaTransferStatus.Uploading;
-            record.StatusMessage = "已拿到上传参数，开始上传加密媒体。";
+            record.StatusMessage = $"已拿到上传参数，开始上传加密媒体。上传长度 {FormatByteLength(encryptedLength)}。";
             await PersistMediaRecordAsync(record, cancellationToken);
 
             var uploadResult = await client.UploadEncryptedMediaAsync(uploadInfo.UploadParam, record.FileKey, encryptedBytes, request.ContentType, cancellationToken);
@@ -133,14 +134,27 @@ public sealed partial class WeixinBotDemoService
         {
             record.TransferStatus = MediaTransferStatus.Failed;
             record.StatusMessage = "会话已过期，请重新扫码绑定。";
+            record.ResponseSummary = TruncateSingleLine(exception.Message, 280);
             await PersistMediaRecordAsync(record, cancellationToken);
             await MarkSessionExpiredAsync("会话已过期，请重新扫码绑定。", CancellationToken.None);
             throw new InvalidOperationException("会话已过期，请重新扫码绑定。", exception);
+        }
+        catch (WeixinApiException exception) when (exception.ErrorCode == -2)
+        {
+            record.TransferStatus = MediaTransferStatus.Failed;
+            record.StatusMessage = "媒体上传参数校验失败。";
+            record.ResponseSummary = TruncateSingleLine(exception.Message, 280);
+            await PersistMediaRecordAsync(record, cancellationToken);
+            await RecordBackgroundLogAsync("Error", $"媒体消息发送失败：{exception.Message}");
+            throw new InvalidOperationException(
+                "微信 getuploadurl 参数校验失败（errcode=-2）。已按 AES 加密后的密文长度申请上传参数，如仍失败，请检查该账号的媒体能力、文件大小限制或文件类型是否受支持。",
+                exception);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             record.TransferStatus = MediaTransferStatus.Failed;
             record.StatusMessage = exception.Message;
+            record.ResponseSummary = TruncateSingleLine(exception.Message, 280);
             await PersistMediaRecordAsync(record, cancellationToken);
             await RecordBackgroundLogAsync("Error", $"媒体消息发送失败：{exception.Message}");
             throw;
@@ -335,6 +349,11 @@ public sealed partial class WeixinBotDemoService
         var invalidChars = Path.GetInvalidFileNameChars();
         var cleaned = new string(originalName.Select(ch => invalidChars.Contains(ch) ? '_' : ch).ToArray());
         return $"{record.CreatedAt:yyyyMMddHHmmss}-{cleaned}";
+    }
+
+    private static string FormatByteLength(long length)
+    {
+        return $"{length} B";
     }
 
     private static string GetMediaTypeLabel(MediaMessageType mediaType)

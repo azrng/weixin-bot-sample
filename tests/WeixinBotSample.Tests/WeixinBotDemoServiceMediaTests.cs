@@ -33,6 +33,18 @@ public sealed class WeixinBotDemoServiceMediaTests
     }
 
     [Fact]
+    public void EncryptAesEcb_WhenPayloadIsNotBlockAligned_ShouldProducePaddedCipherLength()
+    {
+        var plainBytes = Encoding.UTF8.GetBytes("1234567890ABCDEFG");
+        var key = Enumerable.Range(1, 16).Select(static value => (byte)value).ToArray();
+
+        var encrypted = (byte[])EncryptMethod.Invoke(null, [plainBytes, key])!;
+
+        Assert.Equal(17, plainBytes.Length);
+        Assert.Equal(32, encrypted.Length);
+    }
+
+    [Fact]
     public async Task SendMediaMessageAsync_ShouldBuildMediaPayload()
     {
         var handler = new RecordingHandler();

@@ -33,6 +33,7 @@ public partial class Home : ComponentBase, IAsyncDisposable
     private string _activeChecklistCode = string.Empty;
     private bool _configurationDirty;
     private string _pageError = string.Empty;
+    private string _dismissedLoadError = string.Empty;
     private string _saveButtonText => _isSaving ? "保存中..." : "保存配置";
 
     protected override async Task OnInitializedAsync()
@@ -71,6 +72,10 @@ public partial class Home : ComponentBase, IAsyncDisposable
             }
 
             ApplyPushRequestDefaults(state);
+            if (!string.Equals(_dismissedLoadError, state.LoadError, StringComparison.Ordinal))
+            {
+                _dismissedLoadError = string.Empty;
+            }
 
             _isLoading = false;
         }
@@ -154,7 +159,7 @@ public partial class Home : ComponentBase, IAsyncDisposable
 
     private async Task OnMediaFileChanged(InputFileChangeEventArgs args)
     {
-        _pageError = string.Empty;
+        ClearFloatingError();
         var file = args.File;
         if (file is null)
         {
@@ -232,7 +237,7 @@ public partial class Home : ComponentBase, IAsyncDisposable
 
     private async Task ExecuteBusyAsync(Func<Task> action, Action begin, Action end, bool overwriteConfiguration)
     {
-        _pageError = string.Empty;
+        ClearFloatingError();
         begin();
         try
         {
@@ -251,6 +256,43 @@ public partial class Home : ComponentBase, IAsyncDisposable
         {
             end();
         }
+    }
+
+    private bool ShouldShowFloatingNotice()
+    {
+        return !string.IsNullOrWhiteSpace(_pageError) ||
+               (!string.IsNullOrWhiteSpace(_state?.LoadError) && !string.Equals(_dismissedLoadError, _state.LoadError, StringComparison.Ordinal));
+    }
+
+    private string GetFloatingNoticeTitle()
+    {
+        return string.IsNullOrWhiteSpace(_pageError) ? "系统提示" : "操作失败";
+    }
+
+    private string GetFloatingNoticeMessage()
+    {
+        if (!string.IsNullOrWhiteSpace(_pageError))
+        {
+            return _pageError;
+        }
+
+        return _state?.LoadError ?? string.Empty;
+    }
+
+    private void DismissFloatingNotice()
+    {
+        if (!string.IsNullOrWhiteSpace(_pageError))
+        {
+            _pageError = string.Empty;
+            return;
+        }
+
+        _dismissedLoadError = _state?.LoadError ?? string.Empty;
+    }
+
+    private void ClearFloatingError()
+    {
+        _pageError = string.Empty;
     }
 
     private string GetRuntimeStatusText()

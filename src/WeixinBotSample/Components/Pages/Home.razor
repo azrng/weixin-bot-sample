@@ -2,6 +2,18 @@
 
 <PageTitle>微信 iLink Bot 演示 Demo</PageTitle>
 
+@if (ShouldShowFloatingNotice())
+{
+    <div class="floating-notice @(string.IsNullOrWhiteSpace(_pageError) ? "floating-notice--warning" : "floating-notice--error")" role="alert" aria-live="assertive">
+        <div class="floating-notice__icon">!</div>
+        <div class="floating-notice__content">
+            <strong>@GetFloatingNoticeTitle()</strong>
+            <p class="technical-cell">@GetFloatingNoticeMessage()</p>
+        </div>
+        <button type="button" class="floating-notice__close" @onclick="DismissFloatingNotice" aria-label="关闭提示">×</button>
+    </div>
+}
+
 @if (_isLoading)
 {
     <section class="page-loading">
@@ -26,20 +38,6 @@ else
                 <span class="status-chip @GetBindingStatusClass()">@GetBindingStatusText()</span>
             </div>
         </section>
-
-        @if (!string.IsNullOrWhiteSpace(_pageError))
-        {
-            <div class="alert alert-danger demo-alert" role="alert">
-                @_pageError
-            </div>
-        }
-
-        @if (!string.IsNullOrWhiteSpace(_state?.LoadError))
-        {
-            <div class="alert alert-warning demo-alert" role="alert">
-                @_state.LoadError
-            </div>
-        }
 
         <section class="demo-grid">
             <article class="demo-card demo-card--wide">
