@@ -110,6 +110,7 @@ body {
 
 .demo-card {
     grid-column: span 4;
+    min-width: 0;
     padding: 1.5rem;
     background: var(--demo-surface);
     backdrop-filter: blur(18px);
@@ -148,6 +149,7 @@ body {
 }
 
 .demo-field--hint {
+    min-width: 0;
     justify-content: center;
     padding: 1rem;
     border-radius: 1rem;
@@ -155,6 +157,7 @@ body {
 }
 
 .demo-field--hint strong {
+    display: block;
     font-size: 1rem;
 }
 
@@ -189,6 +192,7 @@ body {
 }
 
 .meta-list div {
+    min-width: 0;
     padding-bottom: 0.85rem;
     border-bottom: 1px dashed rgba(13, 110, 253, 0.12);
 }
@@ -203,6 +207,16 @@ body {
 .meta-list dd {
     margin: 0.3rem 0 0;
     font-weight: 600;
+}
+
+.technical-value {
+    display: block;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 0.92rem;
+    line-height: 1.5;
 }
 
 .empty-block {

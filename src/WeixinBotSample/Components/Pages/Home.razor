@@ -85,7 +85,9 @@ else
                     </div>
                     <div class="demo-field demo-field--hint">
                         <span>轮询游标</span>
-                        <strong>@DisplayOrFallback(_state?.Configuration.SyncCursor, "尚未建立")</strong>
+                        <strong class="technical-value" title="@DisplayOrFallback(_state?.Configuration.SyncCursor, "尚未建立")">
+                            @DisplayOrFallback(_state?.Configuration.SyncCursor, "尚未建立")
+                        </strong>
                         <small>`get_updates_buf` 会持久化保存，应用重启后可继续从上次位置接收消息。</small>
                     </div>
                 </div>
@@ -188,7 +190,9 @@ else
                     </div>
                     <div>
                         <dt>Typing Ticket</dt>
-                        <dd>@DisplayOrFallback(_state?.Configuration.TypingTicket, "未获取")</dd>
+                        <dd class="technical-value" title="@DisplayOrFallback(_state?.Configuration.TypingTicket, "未获取")">
+                            @DisplayOrFallback(_state?.Configuration.TypingTicket, "未获取")
+                        </dd>
                     </div>
                     <div>
                         <dt>Ticket 更新时间</dt>
