@@ -127,6 +127,7 @@ public sealed partial class WeixinBotDemoService
                             await PersistStateNoLockAsync(cancellationToken);
                             return;
                         case "confirmed":
+                            var previousConfiguration = _state.Configuration.Clone();
                             _state.Configuration.Token = status.Token?.Trim() ?? string.Empty;
                             _state.Configuration.AccountId = status.AccountId?.Trim() ?? _state.Configuration.AccountId;
                             _state.Configuration.UserId = status.UserId?.Trim() ?? _state.Configuration.UserId;
@@ -140,14 +141,17 @@ public sealed partial class WeixinBotDemoService
                             _state.Configuration.SyncCursor = string.Empty;
                             _state.Configuration.TypingTicket = string.Empty;
                             _state.Configuration.TypingTicketUpdatedAt = null;
-                            _state.Configuration.LastExternalChatId = string.Empty;
-                            _state.Configuration.LastContextToken = string.Empty;
                             _state.Configuration.UpdatedAt = DateTimeOffset.UtcNow;
-                            _state.Messages.Clear();
-                            _state.KnownContacts.Clear();
-                            _state.LastPushResult = null;
-                            _state.LastConnectionCheck = null;
-                            _state.LatestReplyText = string.Empty;
+                            if (ShouldResetConversationContext(previousConfiguration, _state.Configuration))
+                            {
+                                _state.Configuration.LastExternalChatId = string.Empty;
+                                _state.Configuration.LastContextToken = string.Empty;
+                                _state.Messages.Clear();
+                                _state.KnownContacts.Clear();
+                                _state.LastPushResult = null;
+                                _state.LastConnectionCheck = null;
+                                _state.LatestReplyText = string.Empty;
+                            }
                             _state.ActiveBindingSession.Message = "绑定成功。";
                             RecordLogNoLock("Success", $"微信绑定成功，账号 {_state.Configuration.AccountId} 已接入。");
                             _state.ActiveBindingSession = null;
@@ -190,5 +194,29 @@ public sealed partial class WeixinBotDemoService
                 _gate.Release();
             }
         }
+    }
+
+    private static bool ShouldResetConversationContext(DemoConfiguration previousConfiguration, DemoConfiguration currentConfiguration)
+    {
+        var previousAccountId = previousConfiguration.AccountId.Trim();
+        var previousUserId = previousConfiguration.UserId.Trim();
+        var currentAccountId = currentConfiguration.AccountId.Trim();
+        var currentUserId = currentConfiguration.UserId.Trim();
+
+        if (!string.IsNullOrWhiteSpace(previousAccountId) &&
+            !string.IsNullOrWhiteSpace(currentAccountId) &&
+            !string.Equals(previousAccountId, currentAccountId, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(previousUserId) &&
+            !string.IsNullOrWhiteSpace(currentUserId) &&
+            !string.Equals(previousUserId, currentUserId, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return false;
     }
 }

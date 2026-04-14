@@ -11,6 +11,7 @@ public sealed class WeixinBotDemoServiceTransportTests
     private static readonly Type TextItemType = ServiceType.GetNestedType("WeixinTextItem", BindingFlags.NonPublic)!;
     private static readonly MethodInfo TryBuildInboundTextMessageMethod = ServiceType.GetMethod("TryBuildInboundTextMessage", BindingFlags.NonPublic | BindingFlags.Static)!;
     private static readonly MethodInfo IsTypingTicketUnsupportedMethod = ServiceType.GetMethod("IsTypingTicketUnsupported", BindingFlags.NonPublic | BindingFlags.Static)!;
+    private static readonly MethodInfo ShouldResetConversationContextMethod = ServiceType.GetMethod("ShouldResetConversationContext", BindingFlags.NonPublic | BindingFlags.Static)!;
 
     [Fact]
     public void TryBuildInboundTextMessage_WhenWeChatUsesMessageTypeOne_StillBuildsReplyContext()
@@ -56,6 +57,46 @@ public sealed class WeixinBotDemoServiceTransportTests
         var actual = (bool)IsTypingTicketUnsupportedMethod.Invoke(null, [message])!;
 
         Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void ShouldResetConversationContext_WhenBindingSameAccount_ShouldKeepCachedContext()
+    {
+        var previous = new Models.DemoConfiguration
+        {
+            AccountId = "bot-account-001",
+            UserId = "bot-user-001@im.bot",
+            LastExternalChatId = "wx-user-001",
+            LastContextToken = "ctx-001",
+        };
+        var current = new Models.DemoConfiguration
+        {
+            AccountId = "bot-account-001",
+            UserId = "bot-user-001@im.bot",
+        };
+
+        var actual = (bool)ShouldResetConversationContextMethod.Invoke(null, [previous, current])!;
+
+        Assert.False(actual);
+    }
+
+    [Fact]
+    public void ShouldResetConversationContext_WhenBindingDifferentAccount_ShouldClearCachedContext()
+    {
+        var previous = new Models.DemoConfiguration
+        {
+            AccountId = "bot-account-001",
+            UserId = "bot-user-001@im.bot",
+        };
+        var current = new Models.DemoConfiguration
+        {
+            AccountId = "bot-account-002",
+            UserId = "bot-user-002@im.bot",
+        };
+
+        var actual = (bool)ShouldResetConversationContextMethod.Invoke(null, [previous, current])!;
+
+        Assert.True(actual);
     }
 
     private static object CreateEnvelope(int messageType, string text, string contextToken)

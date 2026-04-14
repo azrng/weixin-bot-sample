@@ -377,6 +377,12 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
 
         if (currentContact is null)
         {
+            if (State?.Configuration.IsBound == true)
+            {
+                var boundAccount = DisplayOrFallback(State.Configuration.UserId, State.Configuration.AccountId);
+                return $"当前已绑定账号：{boundAccount}。主动推送仍需要最近会话的 ExternalChatId 和 ContextToken；只要先收到一条用户消息，系统就会自动带入。";
+            }
+
             return "默认带入最近一次可回复的联系人上下文。";
         }
 
