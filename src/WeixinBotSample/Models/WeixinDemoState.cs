@@ -10,6 +10,10 @@ public sealed class WeixinDemoState
 
     public List<KnownContactSession> KnownContacts { get; set; } = [];
 
+    public List<MediaTransferRecord> MediaRecords { get; set; } = [];
+
+    public List<ChecklistItemRecord> ChecklistItems { get; set; } = [];
+
     public List<OperationLogEntry> Logs { get; set; } = [];
 
     public PushMessageResult? LastPushResult { get; set; }
@@ -32,6 +36,8 @@ public sealed class WeixinDemoState
             ActiveBindingSession = ActiveBindingSession?.Clone(),
             Messages = Messages.Select(item => item.Clone()).ToList(),
             KnownContacts = KnownContacts.Select(item => item.Clone()).ToList(),
+            MediaRecords = MediaRecords.Select(item => item.Clone()).ToList(),
+            ChecklistItems = ChecklistItems.Select(item => item.Clone()).ToList(),
             Logs = Logs.Select(item => item.Clone()).ToList(),
             LastPushResult = LastPushResult?.Clone(),
             LastConnectionCheck = LastConnectionCheck?.Clone(),

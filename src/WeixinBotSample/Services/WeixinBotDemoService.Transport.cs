@@ -154,6 +154,91 @@ public sealed partial class WeixinBotDemoService
         return true;
     }
 
+    private static bool TryBuildInboundMediaRecord(WeixinInboundMessageEnvelope message, out MediaTransferRecord record, out string skipReason)
+    {
+        record = default!;
+        skipReason = string.Empty;
+
+        var messageId = message.MessageId?.ToString() ??
+                        message.ClientId ??
+                        Guid.NewGuid().ToString("N");
+        var createdAt = message.CreateTimeMilliseconds > 0
+            ? DateTimeOffset.FromUnixTimeMilliseconds(message.CreateTimeMilliseconds)
+            : DateTimeOffset.UtcNow;
+
+        var item = message.ItemList.FirstOrDefault(entry => entry.Type is >= 2 and <= 5);
+        if (item is null)
+        {
+            skipReason = $"message_type={message.MessageType}，消息中没有可识别的媒体内容";
+            return false;
+        }
+
+        record = new MediaTransferRecord
+        {
+            Id = messageId,
+            MessageId = messageId,
+            ClientId = message.ClientId?.Trim() ?? string.Empty,
+            ExternalChatId = message.FromUserId.Trim(),
+            ExternalUserId = message.FromUserId.Trim(),
+            SenderName = string.IsNullOrWhiteSpace(message.FromUserId) ? "微信用户" : message.FromUserId.Trim(),
+            ContextToken = message.ContextToken?.Trim() ?? string.Empty,
+            Direction = "Inbound",
+            CreatedAt = createdAt,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            TransferStatus = MediaTransferStatus.Received,
+            StatusMessage = "已收到媒体消息，可执行下载解密。",
+        };
+
+        switch (item.Type)
+        {
+            case 2 when item.ImageItem is not null:
+                record.MediaType = MediaMessageType.Image;
+                record.FileName = "图片消息";
+                record.Media = item.ImageItem.Media?.Trim() ?? string.Empty;
+                record.ThumbMedia = item.ImageItem.ThumbMedia?.Trim() ?? string.Empty;
+                record.AesKey = item.ImageItem.GetAesKey();
+                record.DownloadParam = record.Media;
+                record.FileSize = item.ImageItem.Length;
+                record.Md5 = item.ImageItem.Md5?.Trim() ?? string.Empty;
+                return true;
+            case 3 when item.VoiceItem is not null:
+                record.MediaType = MediaMessageType.Voice;
+                record.FileName = "语音消息";
+                record.Media = item.VoiceItem.Media?.Trim() ?? string.Empty;
+                record.AesKey = item.VoiceItem.GetAesKey();
+                record.DownloadParam = record.Media;
+                record.FileSize = item.VoiceItem.Length;
+                record.Md5 = item.VoiceItem.Md5?.Trim() ?? string.Empty;
+                record.AsrText = item.VoiceItem.Text?.Trim() ?? string.Empty;
+                record.EncodeType = item.VoiceItem.EncodeType;
+                record.PlayTimeMilliseconds = item.VoiceItem.PlayTime;
+                return true;
+            case 4 when item.FileItem is not null:
+                record.MediaType = MediaMessageType.File;
+                record.FileName = string.IsNullOrWhiteSpace(item.FileItem.FileName) ? "文件消息" : item.FileItem.FileName.Trim();
+                record.Media = item.FileItem.Media?.Trim() ?? string.Empty;
+                record.AesKey = item.FileItem.GetAesKey();
+                record.DownloadParam = record.Media;
+                record.FileSize = item.FileItem.Length;
+                record.Md5 = item.FileItem.Md5?.Trim() ?? string.Empty;
+                return true;
+            case 5 when item.VideoItem is not null:
+                record.MediaType = MediaMessageType.Video;
+                record.FileName = "视频消息";
+                record.Media = item.VideoItem.Media?.Trim() ?? string.Empty;
+                record.ThumbMedia = item.VideoItem.ThumbMedia?.Trim() ?? string.Empty;
+                record.AesKey = item.VideoItem.GetAesKey();
+                record.DownloadParam = record.Media;
+                record.FileSize = item.VideoItem.Length;
+                record.Md5 = item.VideoItem.Md5?.Trim() ?? string.Empty;
+                record.VideoSize = item.VideoItem.VideoSize;
+                return true;
+            default:
+                skipReason = $"消息包含媒体 item type={item.Type}，但当前结构未能解析";
+                return false;
+        }
+    }
+
     private static string TruncateSingleLine(string value, int maxLength)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -278,6 +363,104 @@ public sealed partial class WeixinBotDemoService
             return new GetConfigResult(parsed.TypingTicket?.Trim() ?? string.Empty, rawText, response.StatusCode);
         }
 
+        public async Task<GetUploadUrlResult> GetUploadUrlAsync(string fileKey, string md5, long length, CancellationToken cancellationToken)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{NormalizeBaseUrl(configuration.BaseUrl)}/ilink/bot/getuploadurl");
+            var payload = JsonSerializer.Serialize(
+                new
+                {
+                    filekey = fileKey,
+                    md5,
+                    len = length,
+                    base_info = new
+                    {
+                        channel_version = NormalizeChannelVersion(configuration.ChannelVersion),
+                    },
+                },
+                JsonOptions);
+            request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+            ApplyBotHeaders(request, configuration);
+
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            var rawText = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(rawText)
+                    ? $"微信 getuploadurl 返回状态码 {(int)response.StatusCode}"
+                    : rawText);
+            }
+
+            var parsed = string.IsNullOrWhiteSpace(rawText)
+                ? new GetUploadUrlResponse()
+                : JsonSerializer.Deserialize<GetUploadUrlResponse>(rawText, JsonOptions) ?? new GetUploadUrlResponse();
+            var errorCode = parsed.ErrorCode ?? parsed.ReturnCode;
+            if ((errorCode ?? 0) != 0)
+            {
+                throw new WeixinApiException(
+                    string.IsNullOrWhiteSpace(parsed.ErrorMessage)
+                        ? $"微信 getuploadurl 返回异常：{errorCode}"
+                        : parsed.ErrorMessage,
+                    errorCode);
+            }
+
+            if (string.IsNullOrWhiteSpace(parsed.UploadParam))
+            {
+                throw new InvalidOperationException("getuploadurl 未返回 upload_param。");
+            }
+
+            return new GetUploadUrlResult(parsed.UploadParam.Trim(), rawText, response.StatusCode);
+        }
+
+        public async Task<UploadMediaResult> UploadEncryptedMediaAsync(
+            string uploadParam,
+            string fileKey,
+            byte[] encryptedBytes,
+            string contentType,
+            CancellationToken cancellationToken)
+        {
+            var uploadUrl = $"https://novac2c.cdn.weixin.qq.com/c2c/upload?encrypted_query_param={Uri.EscapeDataString(uploadParam)}&filekey={Uri.EscapeDataString(fileKey)}";
+            using var request = new HttpRequestMessage(HttpMethod.Post, uploadUrl);
+            request.Content = new ByteArrayContent(encryptedBytes);
+            request.Content.Headers.ContentType = new MediaTypeHeaderValue(string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType);
+
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            var rawText = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(rawText)
+                    ? $"CDN 上传返回状态码 {(int)response.StatusCode}"
+                    : rawText);
+            }
+
+            if (!response.Headers.TryGetValues("x-encrypted-param", out var values))
+            {
+                throw new InvalidOperationException("CDN 上传成功，但响应头缺少 x-encrypted-param。");
+            }
+
+            var downloadParam = values.FirstOrDefault()?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(downloadParam))
+            {
+                throw new InvalidOperationException("CDN 上传成功，但 download_param 为空。");
+            }
+
+            return new UploadMediaResult(downloadParam, rawText, response.StatusCode);
+        }
+
+        public async Task<byte[]> DownloadEncryptedMediaAsync(string downloadParam, CancellationToken cancellationToken)
+        {
+            var downloadUrl = $"https://novac2c.cdn.weixin.qq.com/c2c/download?encrypted_query_param={Uri.EscapeDataString(downloadParam)}";
+            using var response = await httpClient.GetAsync(downloadUrl, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                var rawText = await response.Content.ReadAsStringAsync(cancellationToken);
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(rawText)
+                    ? $"CDN 下载返回状态码 {(int)response.StatusCode}"
+                    : rawText);
+            }
+
+            return await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        }
+
         public async Task SendTypingAsync(string ilinkUserId, string typingTicket, CancellationToken cancellationToken)
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, $"{NormalizeBaseUrl(configuration.BaseUrl)}/ilink/bot/sendtyping");
@@ -374,6 +557,54 @@ public sealed partial class WeixinBotDemoService
             return new SendMessageResult(clientId, rawText, response.StatusCode);
         }
 
+        public async Task<SendMessageResult> SendMediaMessageAsync(
+            string toUserId,
+            string contextToken,
+            object mediaItem,
+            CancellationToken cancellationToken)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{NormalizeBaseUrl(configuration.BaseUrl)}/ilink/bot/sendmessage");
+            var clientId = $"{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}-{Guid.NewGuid():N}"[..32];
+            var payload = JsonSerializer.Serialize(
+                new
+                {
+                    msg = new
+                    {
+                        from_user_id = string.Empty,
+                        to_user_id = toUserId,
+                        client_id = clientId,
+                        message_type = 2,
+                        message_state = 2,
+                        item_list = new[] { mediaItem },
+                        context_token = contextToken,
+                    },
+                },
+                JsonOptions);
+            request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+            ApplyBotHeaders(request, configuration);
+
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            var rawText = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(rawText)
+                    ? $"微信 sendmessage 返回状态码 {(int)response.StatusCode}"
+                    : rawText);
+            }
+
+            var (errorCode, errorMessage) = ParseApiError(rawText);
+            if ((errorCode ?? 0) != 0)
+            {
+                throw new WeixinApiException(
+                    string.IsNullOrWhiteSpace(errorMessage)
+                        ? $"微信 sendmessage 返回异常：{errorCode}"
+                        : errorMessage,
+                    errorCode);
+            }
+
+            return new SendMessageResult(clientId, rawText, response.StatusCode);
+        }
+
     }
 
     private static string BuildWechatUin()
@@ -436,6 +667,10 @@ public sealed partial class WeixinBotDemoService
 
     private sealed record GetConfigResult(string TypingTicket, string RawText, System.Net.HttpStatusCode StatusCode);
 
+    private sealed record GetUploadUrlResult(string UploadParam, string RawText, System.Net.HttpStatusCode StatusCode);
+
+    private sealed record UploadMediaResult(string DownloadParam, string RawText, System.Net.HttpStatusCode StatusCode);
+
     private sealed record SendMessageResult(string ClientId, string RawText, System.Net.HttpStatusCode StatusCode);
 
     private class WeixinApiErrorResponse
@@ -454,6 +689,12 @@ public sealed partial class WeixinBotDemoService
     {
         [JsonPropertyName("typing_ticket")]
         public string? TypingTicket { get; set; }
+    }
+
+    private sealed class GetUploadUrlResponse : WeixinApiErrorResponse
+    {
+        [JsonPropertyName("upload_param")]
+        public string UploadParam { get; set; } = string.Empty;
     }
 
     private sealed class WeixinInboundMessageEnvelope
@@ -487,11 +728,79 @@ public sealed partial class WeixinBotDemoService
 
         [JsonPropertyName("text_item")]
         public WeixinTextItem? TextItem { get; set; }
+
+        [JsonPropertyName("image_item")]
+        public WeixinImageItem? ImageItem { get; set; }
+
+        [JsonPropertyName("voice_item")]
+        public WeixinVoiceItem? VoiceItem { get; set; }
+
+        [JsonPropertyName("file_item")]
+        public WeixinFileItem? FileItem { get; set; }
+
+        [JsonPropertyName("video_item")]
+        public WeixinVideoItem? VideoItem { get; set; }
     }
 
     private sealed class WeixinTextItem
     {
         [JsonPropertyName("text")]
         public string Text { get; set; } = string.Empty;
+    }
+
+    private abstract class WeixinEncryptedMediaItem
+    {
+        [JsonPropertyName("media")]
+        public string? Media { get; set; }
+
+        [JsonPropertyName("aeskey")]
+        public string? AesKey { get; set; }
+
+        [JsonPropertyName("aes_key")]
+        public string? AlternateAesKey { get; set; }
+
+        [JsonPropertyName("md5")]
+        public string? Md5 { get; set; }
+
+        [JsonPropertyName("len")]
+        public long Length { get; set; }
+
+        public string GetAesKey()
+        {
+            return string.IsNullOrWhiteSpace(AesKey) ? AlternateAesKey?.Trim() ?? string.Empty : AesKey.Trim();
+        }
+    }
+
+    private sealed class WeixinImageItem : WeixinEncryptedMediaItem
+    {
+        [JsonPropertyName("thumb_media")]
+        public string? ThumbMedia { get; set; }
+    }
+
+    private sealed class WeixinVoiceItem : WeixinEncryptedMediaItem
+    {
+        [JsonPropertyName("encode_type")]
+        public int EncodeType { get; set; }
+
+        [JsonPropertyName("playtime")]
+        public int PlayTime { get; set; }
+
+        [JsonPropertyName("text")]
+        public string? Text { get; set; }
+    }
+
+    private sealed class WeixinFileItem : WeixinEncryptedMediaItem
+    {
+        [JsonPropertyName("file_name")]
+        public string? FileName { get; set; }
+    }
+
+    private sealed class WeixinVideoItem : WeixinEncryptedMediaItem
+    {
+        [JsonPropertyName("thumb_media")]
+        public string? ThumbMedia { get; set; }
+
+        [JsonPropertyName("video_size")]
+        public long VideoSize { get; set; }
     }
 }

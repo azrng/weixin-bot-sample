@@ -204,6 +204,42 @@ else
             <article class="demo-card demo-card--wide">
                 <div class="demo-card__header">
                     <div>
+                        <p class="demo-card__eyebrow">协议说明</p>
+                        <h2>能力总览与限制提示</h2>
+                    </div>
+                </div>
+                <div class="explanation-panel">
+                    <p>这个区块用来辅助演示，不只是告诉观众“能做什么”，还会解释“为什么这样做”。例如 `getconfig` 先拿 `typing_ticket`，是为了在真正发消息前触发“正在输入”状态；媒体消息要先加密再上 CDN，则是因为协议把文件链路单独放在 `c2c` 域名下处理。</p>
+                    <p>当前 Demo 优先覆盖公开协议端点。对历史消息回溯、群聊能力边界、速率限制等官方未明确部分，这里会持续显示说明，而不是假装已经完全支持。</p>
+                </div>
+                <div class="table-responsive">
+                    <table class="table demo-table">
+                        <thead>
+                            <tr>
+                                <th>场景</th>
+                                <th>当前状态</th>
+                                <th>页面入口</th>
+                                <th>说明</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                                @foreach (var capability in GetProtocolCapabilities())
+                            {
+                                <tr>
+                                    <td>@capability.Scene</td>
+                                    <td>@capability.Status</td>
+                                    <td>@capability.Entry</td>
+                                    <td class="technical-cell">@capability.Summary</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+
+            <article class="demo-card demo-card--wide">
+                <div class="demo-card__header">
+                    <div>
                         <p class="demo-card__eyebrow">上下文缓存</p>
                         <h2>已知联系人</h2>
                     </div>
@@ -228,9 +264,9 @@ else
                                     <tr>
                                         <td>@FormatDateTime(contact.LastMessageAt)</td>
                                         <td>@DisplayOrFallback(contact.SenderName, contact.ExternalUserId)</td>
-                                        <td>@contact.ExternalChatId</td>
-                                        <td>@contact.LatestContextToken</td>
-                                        <td>@DisplayOrFallback(contact.LastMessageText, "-")</td>
+                                        <td class="technical-cell">@contact.ExternalChatId</td>
+                                        <td class="technical-cell">@contact.LatestContextToken</td>
+                                        <td class="technical-cell">@DisplayOrFallback(contact.LastMessageText, "-")</td>
                                         <td class="text-end">
                                             <button class="btn btn-sm btn-outline-primary" @onclick="@(() => UseKnownContact(contact))">带入推送</button>
                                         </td>
@@ -245,6 +281,222 @@ else
                     <div class="empty-block empty-block--compact">
                         <div class="empty-block__icon">CTX</div>
                         <p>收到用户消息后，这里会缓存最近联系人和 `context_token`，方便主动推送继续对话。</p>
+                    </div>
+                }
+            </article>
+
+            <article class="demo-card demo-card--wide">
+                <div class="demo-card__header">
+                    <div>
+                        <p class="demo-card__eyebrow">媒体消息演示</p>
+                        <h2>上传、发送与下载回读</h2>
+                    </div>
+                    <button class="btn btn-primary" @onclick="SendMediaAsync" disabled="@_isSendingMedia">
+                        @(_isSendingMedia ? "处理中..." : "发送媒体消息")
+                    </button>
+                </div>
+                <div class="explanation-panel">
+                    <p>媒体链路和文本不同。这里会按协议做四步：计算摘要、获取 `upload_param`、AES 加密上传到 CDN、再调用 `sendmessage` 发送媒体结构。这样后面收到消息时，才能反向下载并用 `aes_key` 解密回读。</p>
+                    <p>考虑到媒体参数通常很长，这个区域和下面的记录表都会对长内容做自动换行，避免把页面撑坏。</p>
+                </div>
+                <div class="demo-form-grid">
+                    <label class="demo-field">
+                        <span>ExternalChatId</span>
+                        <input class="form-control" @bind="_mediaRequest.ExternalChatId" />
+                    </label>
+                    <label class="demo-field">
+                        <span>ContextToken</span>
+                        <input class="form-control" @bind="_mediaRequest.ContextToken" />
+                    </label>
+                    <label class="demo-field">
+                        <span>媒体类型</span>
+                        <select class="form-select" @bind="_mediaRequest.MediaType">
+                            <option value="@MediaMessageType.Image">图片</option>
+                            <option value="@MediaMessageType.Voice">语音</option>
+                            <option value="@MediaMessageType.File">文件</option>
+                            <option value="@MediaMessageType.Video">视频</option>
+                        </select>
+                    </label>
+                    <label class="demo-field">
+                        <span>语音编码类型</span>
+                        <input class="form-control" type="number" min="1" @bind="_mediaRequest.EncodeType" />
+                    </label>
+                    <label class="demo-field demo-field--full">
+                        <span>选择文件</span>
+                        <InputFile OnChange="OnMediaFileChanged" class="form-control" />
+                    </label>
+                    <label class="demo-field demo-field--full">
+                        <span>附加说明 / 语音 ASR 备注</span>
+                        <textarea class="form-control demo-textarea" @bind="_mediaRequest.Description"></textarea>
+                    </label>
+                    <div class="demo-field demo-field--full demo-field--hint">
+                        <span>当前文件</span>
+                        <strong class="technical-value">@DisplayOrFallback(_selectedMediaName, "尚未选择文件")</strong>
+                        <small>大小：@FormatFileSize(_selectedMediaSize)；类型：@DisplayOrFallback(_selectedMediaContentType, "-")</small>
+                    </div>
+                </div>
+            </article>
+
+            <article class="demo-card demo-card--wide">
+                <div class="demo-card__header">
+                    <div>
+                        <p class="demo-card__eyebrow">媒体记录</p>
+                        <h2>最近媒体消息与缓存状态</h2>
+                    </div>
+                </div>
+                @if (_state?.MediaRecords.Count > 0)
+                {
+                    <div class="table-responsive">
+                        <table class="table demo-table">
+                            <thead>
+                                <tr>
+                                    <th>时间</th>
+                                    <th>方向</th>
+                                    <th>类型</th>
+                                    <th>文件</th>
+                                    <th>状态</th>
+                                    <th>摘要</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in _state.MediaRecords)
+                                {
+                                    <tr>
+                                        <td>@FormatDateTime(item.UpdatedAt)</td>
+                                        <td>@item.Direction</td>
+                                        <td>@GetMediaTypeText(item.MediaType)</td>
+                                        <td class="technical-cell">@DisplayOrFallback(item.FileName, "未命名媒体")</td>
+                                        <td>@GetMediaStatusText(item.TransferStatus)</td>
+                                        <td class="technical-cell">@DisplayOrFallback(item.StatusMessage, item.ResponseSummary)</td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="@(() => DownloadMediaAsync(item.Id))" disabled="@_isSendingMedia || string.IsNullOrWhiteSpace(item.DownloadParam) || string.IsNullOrWhiteSpace(item.AesKey)">下载并解密</button>
+                                        </td>
+                                    </tr>
+                                    @if (ShouldShowMediaTechnicalDetails(item))
+                                    {
+                                        <tr class="demo-table__detail-row">
+                                            <td colspan="7">
+                                                <div class="technical-detail-grid">
+                                                    @if (!string.IsNullOrWhiteSpace(item.AsrText))
+                                                    {
+                                                        <div class="technical-detail">
+                                                            <span class="technical-detail__label">语音 ASR</span>
+                                                            <span class="technical-value">@item.AsrText</span>
+                                                        </div>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(item.ContextToken))
+                                                    {
+                                                        <div class="technical-detail">
+                                                            <span class="technical-detail__label">ContextToken</span>
+                                                            <span class="technical-value">@item.ContextToken</span>
+                                                        </div>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(item.FileKey))
+                                                    {
+                                                        <div class="technical-detail">
+                                                            <span class="technical-detail__label">FileKey</span>
+                                                            <span class="technical-value">@item.FileKey</span>
+                                                        </div>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(item.Md5))
+                                                    {
+                                                        <div class="technical-detail">
+                                                            <span class="technical-detail__label">MD5</span>
+                                                            <span class="technical-value">@item.Md5</span>
+                                                        </div>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(item.AesKey))
+                                                    {
+                                                        <div class="technical-detail">
+                                                            <span class="technical-detail__label">AES Key</span>
+                                                            <span class="technical-value">@item.AesKey</span>
+                                                        </div>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(item.DownloadParam))
+                                                    {
+                                                        <div class="technical-detail">
+                                                            <span class="technical-detail__label">Download Param</span>
+                                                            <span class="technical-value">@item.DownloadParam</span>
+                                                        </div>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(item.LocalCachePath))
+                                                    {
+                                                        <div class="technical-detail">
+                                                            <span class="technical-detail__label">缓存路径</span>
+                                                            <span class="technical-value">@item.LocalCachePath</span>
+                                                        </div>
+                                                    }
+                                                    @if (item.FileSize > 0)
+                                                    {
+                                                        <div class="technical-detail">
+                                                            <span class="technical-detail__label">文件大小</span>
+                                                            <span class="technical-value">@FormatFileSize(item.FileSize)</span>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="empty-block empty-block--compact">
+                        <div class="empty-block__icon">MED</div>
+                        <p>媒体消息发出或收到后，这里会显示上传、发送、下载和解密的全过程状态。</p>
+                    </div>
+                }
+            </article>
+
+            <article class="demo-card demo-card--wide">
+                <div class="demo-card__header">
+                    <div>
+                        <p class="demo-card__eyebrow">联调检查</p>
+                        <h2>真实账号 Checklist</h2>
+                    </div>
+                    <button class="btn btn-outline-primary" @onclick="RunAllChecklistAsync" disabled="@_isRunningAllChecklist">
+                        @(_isRunningAllChecklist ? "检查中..." : "执行全部检查")
+                    </button>
+                </div>
+                <div class="explanation-panel">
+                    <p>这组检查项是为真实联调准备的。它不会假装替你完成真实验证，而是把“当前已经有证据的能力”和“还需要真实触发的场景”明确区分出来，避免演示时讲过头。</p>
+                </div>
+                @if (_state?.ChecklistItems.Count > 0)
+                {
+                    <div class="table-responsive">
+                        <table class="table demo-table">
+                            <thead>
+                                <tr>
+                                    <th>检查项</th>
+                                    <th>状态</th>
+                                    <th>最近执行</th>
+                                    <th>说明</th>
+                                    <th>证据</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in _state.ChecklistItems)
+                                {
+                                    <tr>
+                                        <td>@item.Name</td>
+                                        <td>@GetChecklistStatusText(item.Status)</td>
+                                        <td>@FormatDateTime(item.CheckedAt)</td>
+                                        <td class="technical-cell">@item.Message</td>
+                                        <td class="technical-cell">@DisplayOrFallback(item.Evidence, item.Description)</td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="@(() => RunChecklistAsync(item.Code))" disabled="@(_isRunningChecklist && _activeChecklistCode == item.Code)">
+                                                @(_isRunningChecklist && _activeChecklistCode == item.Code ? "执行中..." : "执行")
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
                     </div>
                 }
             </article>
@@ -281,7 +533,7 @@ else
                     <div class="result-panel @( _state.LastPushResult.Succeeded ? "result-panel--success" : "result-panel--error")">
                         <p>@_state.LastPushResult.Message</p>
                         <small>发送时间：@FormatDateTime(_state.LastPushResult.SentAt)</small>
-                        <small>响应摘要：@_state.LastPushResult.ResponseSummary</small>
+                        <small class="technical-value">响应摘要：@_state.LastPushResult.ResponseSummary</small>
                     </div>
                 }
 
@@ -290,7 +542,7 @@ else
                     <div class="result-panel @( _state.LastConnectionCheck.Succeeded ? "result-panel--success" : "result-panel--error")">
                         <p>@_state.LastConnectionCheck.Message</p>
                         <small>最近自检时间：@FormatDateTime(_state.LastConnectionCheck.CheckedAt)</small>
-                        <small>响应摘要：@_state.LastConnectionCheck.ResponseSummary</small>
+                        <small class="technical-value">响应摘要：@_state.LastConnectionCheck.ResponseSummary</small>
                     </div>
                 }
             </article>
@@ -334,9 +586,9 @@ else
                                     <tr>
                                         <td>@FormatDateTime(item.CreatedAt)</td>
                                         <td>@DisplayOrFallback(item.SenderName, item.ExternalUserId)</td>
-                                        <td>@item.ExternalChatId</td>
-                                        <td>@item.Text</td>
-                                        <td>@item.ReplyStatus</td>
+                                        <td class="technical-cell">@item.ExternalChatId</td>
+                                        <td class="technical-cell">@item.Text</td>
+                                        <td class="technical-cell">@item.ReplyStatus</td>
                                     </tr>
                                 }
                             </tbody>

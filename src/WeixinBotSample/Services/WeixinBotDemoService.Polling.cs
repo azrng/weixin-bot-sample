@@ -33,13 +33,23 @@ public sealed partial class WeixinBotDemoService
 
                 foreach (var message in response.Messages)
                 {
-                    if (!TryBuildInboundTextMessage(message, out var inbound, out var skipReason))
+                    if (TryBuildInboundTextMessage(message, out var inbound, out _))
                     {
-                        await RecordBackgroundLogAsync("Warning", $"忽略入站消息：{skipReason}");
+                        await HandleInboundMessageAsync(client, inbound, cancellationToken);
                         continue;
                     }
 
-                    await HandleInboundMessageAsync(client, inbound, cancellationToken);
+                    if (TryBuildInboundMediaRecord(message, out var mediaRecord, out _))
+                    {
+                        await PersistInboundMediaRecordAsync(mediaRecord, cancellationToken);
+                        await RecordBackgroundLogAsync("Info", $"收到{GetMediaTypeLabel(mediaRecord.MediaType)}消息：{DisplayFileName(mediaRecord)}。");
+                        continue;
+                    }
+
+                    if (!TryBuildInboundTextMessage(message, out _, out var skipReason))
+                    {
+                        await RecordBackgroundLogAsync("Warning", $"忽略入站消息：{skipReason}");
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -137,5 +147,10 @@ public sealed partial class WeixinBotDemoService
             await PersistInboundRecordAsync(messageRecord, cancellationToken);
             await RecordBackgroundLogAsync("Error", $"回复消息失败：{exception.Message}");
         }
+    }
+
+    private static string DisplayFileName(MediaTransferRecord record)
+    {
+        return string.IsNullOrWhiteSpace(record.FileName) ? "未命名媒体" : record.FileName;
     }
 }

@@ -17,6 +17,7 @@ public sealed partial class WeixinBotDemoService
     private const int MaxLogEntries = 80;
     private const int MaxMessageEntries = 30;
     private const int MaxKnownContactEntries = 20;
+    private const int MaxMediaEntries = 24;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -248,6 +249,7 @@ public sealed partial class WeixinBotDemoService
             }
 
             _state.PrimaryGreeting = fixedGreetingService.PrimaryGreeting;
+            EnsureChecklistDefaultsNoLock();
             if (_state.Configuration.RuntimeStatus == ChannelRuntimeStatus.Running)
             {
                 _state.Configuration.RuntimeStatus = ChannelRuntimeStatus.Stopped;
@@ -280,6 +282,21 @@ public sealed partial class WeixinBotDemoService
 
             UpsertKnownContactNoLock(record);
             _state.LatestReplyText = record.ReplyText;
+            await PersistStateNoLockAsync(cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task PersistMediaRecordAsync(MediaTransferRecord record, CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            record.UpdatedAt = DateTimeOffset.UtcNow;
+            UpsertMediaRecordNoLock(record);
             await PersistStateNoLockAsync(cancellationToken);
         }
         finally
@@ -372,6 +389,59 @@ public sealed partial class WeixinBotDemoService
             .ThenByDescending(item => item.UpdatedAt)
             .Take(MaxKnownContactEntries)
             .ToList();
+    }
+
+    private void UpsertMediaRecordNoLock(MediaTransferRecord record)
+    {
+        var existing = _state.MediaRecords.FirstOrDefault(item =>
+            string.Equals(item.Id, record.Id, StringComparison.Ordinal) ||
+            (!string.IsNullOrWhiteSpace(record.MessageId) && string.Equals(item.MessageId, record.MessageId, StringComparison.Ordinal)));
+
+        if (existing is null)
+        {
+            _state.MediaRecords.Insert(0, record);
+        }
+        else
+        {
+            var index = _state.MediaRecords.IndexOf(existing);
+            _state.MediaRecords[index] = record;
+        }
+
+        _state.MediaRecords = _state.MediaRecords
+            .OrderByDescending(item => item.UpdatedAt)
+            .ThenByDescending(item => item.CreatedAt)
+            .Take(MaxMediaEntries)
+            .ToList();
+    }
+
+    private void EnsureChecklistDefaultsNoLock()
+    {
+        var defaults = BuildChecklistDefaults();
+        foreach (var item in defaults)
+        {
+            if (_state.ChecklistItems.All(existing => !string.Equals(existing.Code, item.Code, StringComparison.Ordinal)))
+            {
+                _state.ChecklistItems.Add(item);
+            }
+        }
+
+        _state.ChecklistItems = _state.ChecklistItems
+            .OrderBy(item => item.Code, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private static List<ChecklistItemRecord> BuildChecklistDefaults()
+    {
+        return
+        [
+            new ChecklistItemRecord { Code = "env", Name = "环境检查", Description = "检查必要参数、缓存目录和协议版本是否就绪。" },
+            new ChecklistItemRecord { Code = "binding", Name = "绑定检查", Description = "确认二维码绑定、Token 与账号状态可用。" },
+            new ChecklistItemRecord { Code = "typing", Name = "Typing 检查", Description = "确认 getconfig 与 sendtyping 链路已跑通或具备前置条件。" },
+            new ChecklistItemRecord { Code = "text", Name = "文本链路检查", Description = "确认文本收消息、自动回复或主动推送已经发生。" },
+            new ChecklistItemRecord { Code = "media", Name = "媒体链路检查", Description = "确认媒体上传发送或下载解密已至少完成一次。" },
+            new ChecklistItemRecord { Code = "voice_asr", Name = "语音 ASR 检查", Description = "确认收到语音消息并拿到协议自带的转写文本。" },
+            new ChecklistItemRecord { Code = "session_expiry", Name = "会话过期恢复检查", Description = "确认 errcode=-14 场景被识别，并能引导重新扫码。" },
+        ];
     }
 
     private static string NormalizeChannelVersion(string? value)
