@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using WeixinBotSample.Components.Common;
 using WeixinBotSample.Models;
 using WeixinBotSample.Services;
 
@@ -696,6 +697,25 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
     }
 
     protected sealed record ProtocolCapabilityView(string Code, string Scene, string Status, string Entry, string Summary);
+
+    protected IReadOnlyList<DemoWorkspaceShell.WorkspaceFactItem> GetWorkspaceFacts()
+    {
+        var passedChecklist = State?.ChecklistItems.Count(item => item.Status == ChecklistItemStatus.Passed) ?? 0;
+        var totalChecklist = State?.ChecklistItems.Count ?? 0;
+        var mediaCount = State?.MediaRecords.Count ?? 0;
+        var contactCount = State?.KnownContacts.Count ?? 0;
+        var messageCount = State?.Messages.Count ?? 0;
+
+        return
+        [
+            new("绑定", GetBindingStatusText(), State?.Configuration.IsBound == true ? "success" : "warning"),
+            new("监听", GetRuntimeStatusText(), State?.Configuration.RuntimeStatus == ChannelRuntimeStatus.Running ? "info" : State?.Configuration.RuntimeStatus == ChannelRuntimeStatus.Error ? "danger" : "neutral"),
+            new("联系人", contactCount.ToString(), contactCount > 0 ? "info" : "neutral"),
+            new("消息", messageCount.ToString(), messageCount > 0 ? "info" : "neutral"),
+            new("媒体", mediaCount.ToString(), mediaCount > 0 ? "info" : "neutral"),
+            new("Checklist", totalChecklist == 0 ? "0 / 0" : $"{passedChecklist} / {totalChecklist}", passedChecklist > 0 ? "success" : "warning"),
+        ];
+    }
 
     protected static bool ShouldApplySuggestedValue(string currentValue, string lastSuggestedValue)
     {

@@ -123,3 +123,4 @@
   - 2026-04-14：已完成主动推送前置引导优化，消息页在无会话上下文时改为卡片内说明并高亮缺失字段；重新通过 `dotnet build`、`dotnet test` 与 `/`、`/messages`、`/media`、`/checklist` smoke test，任务回到 REVIEW。
   - 2026-04-14：根据媒体页真实报错继续排查 `getuploadurl errcode=-2`，准备补媒体页页内诊断、语音字段按类型展示，以及失败 trace 中的请求体保留，任务状态切回 DOING。
   - 2026-04-14：已完成媒体页 `getuploadurl errcode=-2` 诊断增强，新增页内失败定位、语音字段按类型展示和失败请求体保留；重新通过 `dotnet build`、`dotnet test` 与 `/`、`/messages`、`/media`、`/checklist` smoke test，任务回到 REVIEW。
+  - 2026-04-15：根据用户要求继续检查 UI 可优化空间，已增强工作台侧栏的状态快照与数据快照、页面头部的信息卡和导航激活表现，并重新通过 `dotnet build`、`dotnet test` 与 `/`、`/messages`、`/media`、`/checklist` smoke test。

@@ -45,6 +45,23 @@ else
                     <p>把总览、消息、媒体、联调拆开，避免一页过长。</p>
                 </div>
 
+                <section class="workspace-sidebar__panel">
+                    <div class="workspace-panel__header">
+                        <p class="demo-card__eyebrow">运行快照</p>
+                        <h3>当前状态</h3>
+                    </div>
+                    <div class="workspace-status-stack">
+                        <div class="workspace-status-row">
+                            <span class="workspace-status-row__label">监听状态</span>
+                            <span class="status-chip @RuntimeStatusClass">@RuntimeStatusText</span>
+                        </div>
+                        <div class="workspace-status-row">
+                            <span class="workspace-status-row__label">绑定状态</span>
+                            <span class="status-chip @BindingStatusClass">@BindingStatusText</span>
+                        </div>
+                    </div>
+                </section>
+
                 <nav class="workspace-nav" aria-label="演示导航">
                     @foreach (var item in NavigationItems)
                     {
@@ -57,17 +74,48 @@ else
                         </NavLink>
                     }
                 </nav>
+
+                @if (Facts.Count > 0)
+                {
+                    <section class="workspace-sidebar__panel">
+                        <div class="workspace-panel__header">
+                            <p class="demo-card__eyebrow">数据快照</p>
+                            <h3>当前规模</h3>
+                        </div>
+                        <div class="workspace-facts">
+                            @foreach (var fact in Facts)
+                            {
+                                <div class="workspace-fact workspace-fact--@fact.Tone">
+                                    <span class="workspace-fact__label">@fact.Label</span>
+                                    <strong class="workspace-fact__value">@fact.Value</strong>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                }
             </aside>
 
             <section class="workspace-main">
                 <header class="workspace-page-header">
-                    <div>
+                    <div class="workspace-page-header__intro">
                         <p class="demo-card__eyebrow">@Eyebrow</p>
                         <h2>@Title</h2>
+                        @if (!string.IsNullOrWhiteSpace(Description))
+                        {
+                            <p>@Description</p>
+                        }
                     </div>
-                    @if (!string.IsNullOrWhiteSpace(Description))
+                    @if (Facts.Count > 0)
                     {
-                        <p>@Description</p>
+                        <div class="workspace-page-header__facts">
+                            @foreach (var fact in Facts)
+                            {
+                                <div class="workspace-fact workspace-fact--@fact.Tone">
+                                    <span class="workspace-fact__label">@fact.Label</span>
+                                    <strong class="workspace-fact__value">@fact.Value</strong>
+                                </div>
+                            }
+                        </div>
                     }
                 </header>
 
@@ -129,4 +177,9 @@ else
     public IReadOnlyList<WorkspaceNavItem> NavigationItems { get; set; } = [];
 
     public sealed record WorkspaceNavItem(string Href, string Icon, string Title, string Description, NavLinkMatch Match = NavLinkMatch.Prefix);
+
+    [Parameter]
+    public IReadOnlyList<WorkspaceFactItem> Facts { get; set; } = [];
+
+    public sealed record WorkspaceFactItem(string Label, string Value, string Tone = "neutral");
 }
