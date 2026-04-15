@@ -19,7 +19,7 @@
     Title="Checklist 与验证证据"
     Description="这页不做花哨堆叠，重点是把已经验证的能力和还缺现场证据的环节分清楚。"
     Facts="@GetWorkspaceFacts()"
-    NavigationItems="@WorkspaceNavItems">
+    NavigationItems="@DemoWorkspaceNavigation.Checklist">
     <article class="demo-card">
         <div class="demo-card__header">
             <div>
@@ -133,13 +133,3 @@
         }
     </article>
 </DemoWorkspaceShell>
-
-@code {
-    private static readonly IReadOnlyList<DemoWorkspaceShell.WorkspaceNavItem> WorkspaceNavItems =
-    [
-        new("/", "01", "总览", "绑定、监听、配置与能力矩阵"),
-        new("/messages", "02", "消息", "联系人、主动推送、入站记录与日志"),
-        new("/media", "03", "媒体", "上传、发送、下载回读与技术细节"),
-        new("/checklist", "04", "联调", "真实账号检查项与环境证据", NavLinkMatch.All),
-    ];
-}

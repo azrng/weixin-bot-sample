@@ -1,0 +1,146 @@
+@namespace WeixinBotSample.Components.Pages
+
+<article class="demo-card demo-card--wide">
+    <div class="demo-card__header">
+        <div>
+            <p class="demo-card__eyebrow">媒体消息演示</p>
+            <h2>上传、发送与下载回读</h2>
+        </div>
+        <button class="btn btn-primary" @onclick="OnSend" disabled="@IsSendingMedia">
+            @(IsSendingMedia ? "处理中..." : "发送媒体消息")
+        </button>
+    </div>
+    <div class="explanation-panel">
+        <ul class="list-unstyled d-grid gap-2 mb-0">
+            <li>媒体链路和文本链路分开处理：先计算摘要，再申请 `upload_param`，然后 AES 加密上传到 CDN，最后调用 `sendmessage`。</li>
+            <li>接收回读时会按返回的 `aes_key` 下载并解密，方便直接核对本地缓存、回执和消息结构是否一致。</li>
+            <li>当前实现已对齐媒体结构中的 `len` 与加密后密文大小，并兼容 `aeskey` / `aes_key` 两种字段名。</li>
+        </ul>
+    </div>
+    @if (ShowSelfTargetHint)
+    {
+        <div class="result-panel result-panel--warning">
+            <p><strong>当前目标是绑定账号自己</strong></p>
+            <small>@SelfTargetHint</small>
+        </div>
+    }
+    @if (ShowLatestFailureHint)
+    {
+        <div class="result-panel result-panel--warning">
+            <p><strong>最近一次媒体失败定位</strong></p>
+            <small>@LatestFailureHint</small>
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(MediaValidationMessage))
+    {
+        <div class="result-panel result-panel--error">
+            <p><strong>还不能直接发送媒体消息</strong></p>
+            <small>@MediaValidationMessage</small>
+        </div>
+    }
+    <div class="demo-form-grid">
+        <label class="demo-field">
+            <span>ExternalChatId</span>
+            <input class="@GetMediaFieldClass(MediaRequest.ExternalChatId)" @bind="MediaRequest.ExternalChatId" @bind:after="ClearValidationAsync" />
+        </label>
+        <label class="demo-field">
+            <span>ContextToken</span>
+            <input class="@GetMediaFieldClass(MediaRequest.ContextToken)" @bind="MediaRequest.ContextToken" @bind:after="ClearValidationAsync" />
+        </label>
+        <label class="demo-field">
+            <span>媒体类型</span>
+            <select class="form-select" @bind="MediaRequest.MediaType" @bind:after="ClearValidationAsync">
+                <option value="@MediaMessageType.Image">图片</option>
+                <option value="@MediaMessageType.Voice">语音</option>
+                <option value="@MediaMessageType.File">文件</option>
+                <option value="@MediaMessageType.Video">视频</option>
+            </select>
+        </label>
+        <div class="demo-field demo-field--hint">
+            <span>当前目标</span>
+            <small>@MediaTargetHint</small>
+        </div>
+        @if (IsVoiceMediaType)
+        {
+            <label class="demo-field">
+                <span>语音编码类型</span>
+                <input class="@GetMediaFieldClass(MediaRequest.EncodeType <= 0 ? string.Empty : MediaRequest.EncodeType.ToString())" type="number" min="1" @bind="MediaRequest.EncodeType" @bind:after="ClearValidationAsync" />
+            </label>
+            <label class="demo-field">
+                <span>语音时长（毫秒）</span>
+                <input class="@GetMediaFieldClass(MediaRequest.PlayTimeMilliseconds <= 0 ? string.Empty : MediaRequest.PlayTimeMilliseconds.ToString())" type="number" min="1" @bind="MediaRequest.PlayTimeMilliseconds" @bind:after="ClearValidationAsync" />
+            </label>
+        }
+        <label class="demo-field demo-field--full">
+            <span>选择文件</span>
+            <InputFile OnChange="OnFileChanged" class="form-control" />
+        </label>
+        <label class="demo-field demo-field--full">
+            <span>@MediaDescriptionLabel</span>
+            <textarea class="form-control demo-textarea" @bind="MediaRequest.Description" @bind:after="ClearValidationAsync"></textarea>
+        </label>
+        <div class="demo-field demo-field--full demo-field--hint">
+            <span>当前文件</span>
+            <strong class="technical-value">@SelectedMediaName</strong>
+            <small>大小：@SelectedMediaSizeText；类型：@SelectedMediaContentType</small>
+        </div>
+    </div>
+</article>
+
+@code {
+    [Parameter]
+    public MediaUploadRequest MediaRequest { get; set; } = new();
+
+    [Parameter]
+    public bool IsSendingMedia { get; set; }
+
+    [Parameter]
+    public bool ShowSelfTargetHint { get; set; }
+
+    [Parameter]
+    public string SelfTargetHint { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool ShowLatestFailureHint { get; set; }
+
+    [Parameter]
+    public string LatestFailureHint { get; set; } = string.Empty;
+
+    [Parameter]
+    public string MediaValidationMessage { get; set; } = string.Empty;
+
+    [Parameter]
+    public string MediaTargetHint { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool IsVoiceMediaType { get; set; }
+
+    [Parameter]
+    public string MediaDescriptionLabel { get; set; } = string.Empty;
+
+    [Parameter]
+    public string SelectedMediaName { get; set; } = string.Empty;
+
+    [Parameter]
+    public string SelectedMediaSizeText { get; set; } = string.Empty;
+
+    [Parameter]
+    public string SelectedMediaContentType { get; set; } = string.Empty;
+
+    [Parameter]
+    public Func<string, string> GetMediaFieldClass { get; set; } = value => value;
+
+    [Parameter]
+    public EventCallback OnSend { get; set; }
+
+    [Parameter]
+    public EventCallback OnClearValidation { get; set; }
+
+    [Parameter]
+    public EventCallback<InputFileChangeEventArgs> OnFileChanged { get; set; }
+
+    private Task ClearValidationAsync()
+    {
+        return OnClearValidation.InvokeAsync();
+    }
+}

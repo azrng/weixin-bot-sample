@@ -19,273 +19,60 @@
     Title="连接状态与协议能力"
     Description="这一页保留最常用的绑定、监听、配置和能力矩阵，联调细节则拆到独立页面。"
     Facts="@GetWorkspaceFacts()"
-    NavigationItems="@WorkspaceNavItems">
+    NavigationItems="@DemoWorkspaceNavigation.Home">
     @{
-        var overviewRecommendation = GetOverviewRecommendation();
+        var lastConnectionCheck = State?.LastConnectionCheck;
     }
 
-    <article class="demo-card demo-card--wide">
-        <div class="demo-card__header">
-            <div>
-                <p class="demo-card__eyebrow">演示看板</p>
-                <h2>关键指标与下一步建议</h2>
-            </div>
-        </div>
-        <div class="overview-grid">
-            @foreach (var insight in GetOverviewInsights())
-            {
-                <section class="overview-card overview-card--@insight.Tone">
-                    <div class="overview-card__icon">
-                        <i class="@insight.Icon" aria-hidden="true"></i>
-                    </div>
-                    <div class="overview-card__body">
-                        <span class="overview-card__label">@insight.Title</span>
-                        <strong class="overview-card__value">@insight.Value</strong>
-                        <p>@insight.Detail</p>
-                    </div>
-                </section>
-            }
-            <section class="overview-guidance overview-guidance--@overviewRecommendation.Tone">
-                <p class="demo-card__eyebrow">建议动作</p>
-                <h3>@overviewRecommendation.Title</h3>
-                <p>@overviewRecommendation.Message</p>
-                <a class="btn btn-sm btn-outline-primary" href="@overviewRecommendation.Href">@overviewRecommendation.LinkText</a>
-            </section>
-        </div>
-    </article>
+    <HomeOverviewSection
+        Insights="@GetOverviewInsights()"
+        Recommendation="@GetOverviewRecommendation()" />
 
-    <article class="demo-card demo-card--wide">
-        <div class="demo-card__header">
-            <div>
-                <p class="demo-card__eyebrow">基础配置</p>
-                <h2>连接参数</h2>
-            </div>
-            <button class="btn btn-primary" @onclick="SaveConfigurationAsync" disabled="@IsSaving">
-                @SaveButtonText
-            </button>
-        </div>
-        <div class="demo-form-grid">
-            <label class="demo-field">
-                <span>网关地址</span>
-                <input class="form-control" @bind="ConfigurationModel.BaseUrl" @bind:after="MarkConfigurationDirty" />
-            </label>
-            <label class="demo-field">
-                <span>RouteTag</span>
-                <input class="form-control" @bind="ConfigurationModel.RouteTag" @bind:after="MarkConfigurationDirty" />
-            </label>
-            <label class="demo-field">
-                <span>Token</span>
-                <input class="form-control" @bind="ConfigurationModel.Token" @bind:after="MarkConfigurationDirty" />
-            </label>
-            <label class="demo-field">
-                <span>账号 ID</span>
-                <input class="form-control" @bind="ConfigurationModel.AccountId" @bind:after="MarkConfigurationDirty" />
-            </label>
-            <label class="demo-field">
-                <span>用户 ID</span>
-                <input class="form-control" @bind="ConfigurationModel.UserId" @bind:after="MarkConfigurationDirty" />
-            </label>
-            <div class="demo-field demo-field--hint">
-                <span>协议版本</span>
-                <strong>@DisplayOrFallback(State?.Configuration.ChannelVersion, "1.0.3")</strong>
-                <small>当前 Demo 按 iLink Bot 标准链路固定使用 `base_info.channel_version`。</small>
-            </div>
-            <div class="demo-field demo-field--hint">
-                <span>最近更新</span>
-                <strong>@FormatDateTime(State?.Configuration.UpdatedAt)</strong>
-                <small>绑定成功后，Token / 账号 / 用户信息会自动回写到这里。</small>
-            </div>
-            <div class="demo-field demo-field--hint">
-                <span>轮询游标</span>
-                <strong class="technical-value" title="@DisplayOrFallback(State?.Configuration.SyncCursor, "尚未建立")">
-                    @DisplayOrFallback(State?.Configuration.SyncCursor, "尚未建立")
-                </strong>
-                <small>`get_updates_buf` 会持久化保存，应用重启后可继续从上次位置接收消息。</small>
-            </div>
-        </div>
-    </article>
+    <HomeConfigurationSection
+        ConfigurationModel="ConfigurationModel"
+        IsSaving="@IsSaving"
+        SaveButtonText="@SaveButtonText"
+        ChannelVersion="@(DisplayOrFallback(State?.Configuration.ChannelVersion, "1.0.3"))"
+        UpdatedAt="@(FormatDateTime(State?.Configuration.UpdatedAt))"
+        SyncCursor="@(DisplayOrFallback(State?.Configuration.SyncCursor, "尚未建立"))"
+        OnMarkDirty="MarkConfigurationDirty"
+        OnSave="SaveConfigurationAsync" />
 
-    <article class="demo-card">
-        <div class="demo-card__header">
-            <div>
-                <p class="demo-card__eyebrow">微信绑定</p>
-                <h2>二维码接入</h2>
-            </div>
-            <div class="demo-action-group">
-                <button class="btn btn-outline-primary" @onclick="BindWeChatAsync" disabled="@IsBinding">绑定微信</button>
-                <button class="btn btn-outline-secondary" @onclick="RefreshQrCodeAsync" disabled="@IsBinding">刷新二维码</button>
-            </div>
-        </div>
-        <div class="binding-panel">
-            @if (!string.IsNullOrWhiteSpace(State?.ActiveBindingSession?.QrCodeDataUrl))
-            {
-                <img src="@State.ActiveBindingSession.QrCodeDataUrl" alt="微信绑定二维码" class="binding-panel__qr" />
-            }
-            else
-            {
-                <div class="empty-block">
-                    <div class="empty-block__icon">QR</div>
-                    <p>点击“绑定微信”后，这里会显示扫码二维码。</p>
-                </div>
-            }
+    <HomeBindingSection
+        IsBinding="@IsBinding"
+        BindingStatusText="@GetBindingStatusText()"
+        QrCodeDataUrl="@State?.ActiveBindingSession?.QrCodeDataUrl"
+        BoundAccountName="@(DisplayOrFallback(State?.Configuration.BoundAccountName, "尚未绑定"))"
+        QrCodeStatusMessage="@(DisplayOrFallback(State?.ActiveBindingSession?.Message, "暂无进行中的绑定流程"))"
+        SessionKey="@(DisplayOrFallback(State?.ActiveBindingSession?.SessionKey, "-"))"
+        OnBind="BindWeChatAsync"
+        OnRefreshQrCode="RefreshQrCodeAsync" />
 
-            <dl class="meta-list">
-                <div>
-                    <dt>绑定状态</dt>
-                    <dd>@GetBindingStatusText()</dd>
-                </div>
-                <div>
-                    <dt>绑定账号</dt>
-                    <dd>@DisplayOrFallback(State?.Configuration.BoundAccountName, "尚未绑定")</dd>
-                </div>
-                <div>
-                    <dt>二维码状态</dt>
-                    <dd>@DisplayOrFallback(State?.ActiveBindingSession?.Message, "暂无进行中的绑定流程")</dd>
-                </div>
-                <div>
-                    <dt>会话 Key</dt>
-                    <dd>@DisplayOrFallback(State?.ActiveBindingSession?.SessionKey, "-")</dd>
-                </div>
-            </dl>
-        </div>
-    </article>
+    <HomeRuntimeSection
+        IsRuntimeWorking="@IsRuntimeWorking"
+        RuntimeStatusText="@GetRuntimeStatusText()"
+        RuntimeStartedAt="@(FormatDateTime(State?.Configuration.RuntimeStartedAt))"
+        RuntimeStoppedAt="@(FormatDateTime(State?.Configuration.RuntimeStoppedAt))"
+        RuntimeError="@(DisplayOrFallback(State?.Configuration.RuntimeError, "无"))"
+        OnStartListening="StartListeningAsync"
+        OnStopListening="StopListeningAsync" />
 
-    <article class="demo-card">
-        <div class="demo-card__header">
-            <div>
-                <p class="demo-card__eyebrow">监听控制</p>
-                <h2>消息接收</h2>
-            </div>
-            <div class="demo-action-group">
-                <button class="btn btn-success" @onclick="StartListeningAsync" disabled="@IsRuntimeWorking">启动监听</button>
-                <button class="btn btn-outline-danger" @onclick="StopListeningAsync" disabled="@IsRuntimeWorking">停止监听</button>
-            </div>
-        </div>
-        <dl class="meta-list">
-            <div>
-                <dt>当前状态</dt>
-                <dd>@GetRuntimeStatusText()</dd>
-            </div>
-            <div>
-                <dt>最近启动</dt>
-                <dd>@FormatDateTime(State?.Configuration.RuntimeStartedAt)</dd>
-            </div>
-            <div>
-                <dt>最近停止</dt>
-                <dd>@FormatDateTime(State?.Configuration.RuntimeStoppedAt)</dd>
-            </div>
-            <div>
-                <dt>错误信息</dt>
-                <dd>@DisplayOrFallback(State?.Configuration.RuntimeError, "无")</dd>
-            </div>
-        </dl>
-    </article>
+    <HomeConnectionSection
+        IsCheckingConnection="@IsCheckingConnection"
+        LastCheckAt="@(FormatDateTime(lastConnectionCheck?.CheckedAt))"
+        LastCheckMessage="@(DisplayOrFallback(lastConnectionCheck?.Message, "尚未执行连接自检"))"
+        TypingTicket="@(DisplayOrFallback(State?.Configuration.TypingTicket, "未获取"))"
+        TypingTicketUpdatedAt="@(FormatDateTime(State?.Configuration.TypingTicketUpdatedAt))"
+        PrimaryGreeting="@(DisplayOrFallback(State?.PrimaryGreeting, "-"))"
+        LatestReplyText="@(DisplayOrFallback(State?.LatestReplyText, "还没有回复记录"))"
+        ShowLatestResponse="@(lastConnectionCheck is not null && !string.IsNullOrWhiteSpace(lastConnectionCheck.ResponseSummary))"
+        IsLatestResponseSuccess="@(lastConnectionCheck?.Succeeded == true)"
+        LatestResponseMessage="@lastConnectionCheck?.Message"
+        LatestResponseCheckedAt="@(FormatDateTime(lastConnectionCheck?.CheckedAt))"
+        LatestResponseSummary="@lastConnectionCheck?.ResponseSummary"
+        OnValidateConnection="ValidateConnectionAsync" />
 
-    <article class="demo-card">
-        <div class="demo-card__header">
-            <div>
-                <p class="demo-card__eyebrow">协议自检</p>
-                <h2>连接与 Typing 状态</h2>
-            </div>
-            <button class="btn btn-outline-primary" @onclick="ValidateConnectionAsync" disabled="@IsCheckingConnection">
-                @(IsCheckingConnection ? "检测中..." : "验证连接")
-            </button>
-        </div>
-        <dl class="meta-list">
-            <div>
-                <dt>最近自检</dt>
-                <dd>@FormatDateTime(State?.LastConnectionCheck?.CheckedAt)</dd>
-            </div>
-            <div>
-                <dt>自检结果</dt>
-                <dd>@DisplayOrFallback(State?.LastConnectionCheck?.Message, "尚未执行连接自检")</dd>
-            </div>
-            <div>
-                <dt>Typing Ticket</dt>
-                <dd class="technical-value" title="@DisplayOrFallback(State?.Configuration.TypingTicket, "未获取")">
-                    @DisplayOrFallback(State?.Configuration.TypingTicket, "未获取")
-                </dd>
-            </div>
-            <div>
-                <dt>Ticket 更新时间</dt>
-                <dd>@FormatDateTime(State?.Configuration.TypingTicketUpdatedAt)</dd>
-            </div>
-        </dl>
-    </article>
-
-    <article class="demo-card demo-card--wide">
-        <div class="demo-card__header">
-            <div>
-                <p class="demo-card__eyebrow">协议说明</p>
-                <h2>能力总览与限制提示</h2>
-            </div>
-        </div>
-        <div class="explanation-panel">
-            <p>首页用来辅助演示，不只是告诉观众“能做什么”，还会解释“为什么这样做”。例如 `getconfig` 先拿 `typing_ticket`，是为了在真正发消息前触发“正在输入”状态；媒体消息要先加密再上 CDN，则是因为协议把文件链路单独放在 `c2c` 域名下处理。</p>
-            <p>当前 Demo 优先覆盖公开协议端点。对历史消息回溯、群聊能力边界、速率限制等官方未明确部分，这里会持续显示说明，而不是假装已经完全支持。</p>
-        </div>
-        <div class="table-responsive">
-            <table class="table demo-table">
-                <thead>
-                    <tr>
-                        <th>场景</th>
-                        <th>当前状态</th>
-                        <th>页面入口</th>
-                        <th>说明</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var capability in GetProtocolCapabilities())
-                    {
-                        <tr>
-                            <td>@capability.Scene</td>
-                            <td><span class="@GetCapabilityStatusClass(capability.Status)">@capability.Status</span></td>
-                            <td>@capability.Entry</td>
-                            <td class="technical-cell">@capability.Summary</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </article>
-
-    <article class="demo-card">
-        <div class="demo-card__header">
-            <div>
-                <p class="demo-card__eyebrow">自动回复</p>
-                <h2>固定祝福语</h2>
-            </div>
-        </div>
-        <div class="greeting-panel">
-            <p class="greeting-panel__primary">@DisplayOrFallback(State?.PrimaryGreeting, "-")</p>
-            <p class="greeting-panel__secondary">最近一次回复：@DisplayOrFallback(State?.LatestReplyText, "还没有回复记录")</p>
-        </div>
-    </article>
-
-    @if (State?.LastConnectionCheck is not null && !string.IsNullOrWhiteSpace(State.LastConnectionCheck.ResponseSummary))
-    {
-        <article class="demo-card demo-card--wide">
-            <div class="demo-card__header">
-                <div>
-                    <p class="demo-card__eyebrow">最近连接回执</p>
-                    <h2>自检响应摘要</h2>
-                </div>
-            </div>
-            <div class="result-panel @(State.LastConnectionCheck.Succeeded ? "result-panel--success" : "result-panel--error")">
-                <p>@State.LastConnectionCheck.Message</p>
-                <small>最近自检时间：@FormatDateTime(State.LastConnectionCheck.CheckedAt)</small>
-                <small class="technical-value">响应摘要：@State.LastConnectionCheck.ResponseSummary</small>
-            </div>
-        </article>
-    }
+    <HomeProtocolSection
+        Capabilities="@GetProtocolCapabilities()"
+        GetCapabilityStatusClass="GetCapabilityStatusClass" />
 </DemoWorkspaceShell>
-
-@code {
-    private static readonly IReadOnlyList<DemoWorkspaceShell.WorkspaceNavItem> WorkspaceNavItems =
-    [
-        new("/", "01", "总览", "绑定、监听、配置与能力矩阵", NavLinkMatch.All),
-        new("/messages", "02", "消息", "联系人、主动推送、入站记录与日志"),
-        new("/media", "03", "媒体", "上传、发送、下载回读与技术细节"),
-        new("/checklist", "04", "联调", "真实账号检查项与环境证据"),
-    ];
-}

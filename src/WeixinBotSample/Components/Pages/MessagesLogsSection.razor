@@ -1,0 +1,38 @@
+@namespace WeixinBotSample.Components.Pages
+
+<article class="demo-card demo-card--wide">
+    <div class="demo-card__header">
+        <div>
+            <p class="demo-card__eyebrow">操作日志</p>
+            <h2>关键链路可视化</h2>
+        </div>
+    </div>
+    @if (Logs.Count > 0)
+    {
+        <ul class="log-list">
+            @foreach (var item in Logs)
+            {
+                <li class="log-list__item">
+                    <span class="log-list__time">@FormatDateTime(item.CreatedAt)</span>
+                    <span class="log-list__badge log-list__badge--@item.Level.ToLowerInvariant()">@item.Level</span>
+                    <span class="log-list__message">@item.Message</span>
+                </li>
+            }
+        </ul>
+    }
+    else
+    {
+        <div class="empty-block empty-block--compact">
+            <div class="empty-block__icon">LOG</div>
+            <p>操作日志会在这里实时沉淀，方便演示和排查。</p>
+        </div>
+    }
+</article>
+
+@code {
+    [Parameter]
+    public IReadOnlyList<OperationLogEntry> Logs { get; set; } = [];
+
+    [Parameter]
+    public Func<DateTimeOffset?, string> FormatDateTime { get; set; } = _ => "-";
+}

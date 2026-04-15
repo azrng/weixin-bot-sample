@@ -1,0 +1,63 @@
+@namespace WeixinBotSample.Components.Pages
+
+<article class="demo-card demo-card--wide">
+    <div class="demo-card__header">
+        <div>
+            <p class="demo-card__eyebrow">上下文缓存</p>
+            <h2>已知联系人</h2>
+        </div>
+    </div>
+    @if (Contacts.Count > 0)
+    {
+        <div class="table-responsive">
+            <table class="table demo-table">
+                <thead>
+                    <tr>
+                        <th>最近会话</th>
+                        <th>联系人</th>
+                        <th>ExternalChatId</th>
+                        <th>ContextToken</th>
+                        <th>最近消息</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var contact in Contacts)
+                    {
+                        <tr>
+                            <td>@FormatDateTime(contact.LastMessageAt)</td>
+                            <td>@DisplayOrFallback(contact.SenderName, contact.ExternalUserId)</td>
+                            <td class="technical-cell">@contact.ExternalChatId</td>
+                            <td class="technical-cell">@contact.LatestContextToken</td>
+                            <td class="technical-cell">@DisplayOrFallback(contact.LastMessageText, "-")</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="@(() => OnUseKnownContact.InvokeAsync(contact))">带入推送</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="empty-block empty-block--compact">
+            <div class="empty-block__icon">CTX</div>
+            <p>收到用户消息后，这里会缓存最近联系人和 `context_token`，方便主动推送继续对话。</p>
+        </div>
+    }
+</article>
+
+@code {
+    [Parameter]
+    public IReadOnlyList<KnownContactSession> Contacts { get; set; } = [];
+
+    [Parameter]
+    public Func<DateTimeOffset?, string> FormatDateTime { get; set; } = _ => "-";
+
+    [Parameter]
+    public Func<string?, string, string> DisplayOrFallback { get; set; } = (_, fallback) => fallback;
+
+    [Parameter]
+    public EventCallback<KnownContactSession> OnUseKnownContact { get; set; }
+}

@@ -188,9 +188,9 @@ public abstract partial class DemoWorkspacePageBase
         return "回复失败";
     }
 
-    protected sealed record ProtocolCapabilityView(string Code, string Scene, string Status, string Entry, string Summary);
+    public sealed record ProtocolCapabilityView(string Code, string Scene, string Status, string Entry, string Summary);
 
-    protected sealed record OverviewInsightItem(string Icon, string Title, string Value, string Detail, string Tone);
+    public sealed record OverviewInsightItem(string Icon, string Title, string Value, string Detail, string Tone);
 
-    protected sealed record OverviewRecommendation(string Tone, string Title, string Message, string LinkText, string Href);
+    public sealed record OverviewRecommendation(string Tone, string Title, string Message, string LinkText, string Href);
 }

@@ -1,0 +1,55 @@
+@namespace WeixinBotSample.Components.Pages
+
+<article class="demo-card">
+    <div class="demo-card__header">
+        <div>
+            <p class="demo-card__eyebrow">监听控制</p>
+            <h2>消息接收</h2>
+        </div>
+        <div class="demo-action-group">
+            <button class="btn btn-success" @onclick="OnStartListening" disabled="@IsRuntimeWorking">启动监听</button>
+            <button class="btn btn-outline-danger" @onclick="OnStopListening" disabled="@IsRuntimeWorking">停止监听</button>
+        </div>
+    </div>
+    <dl class="meta-list">
+        <div>
+            <dt>当前状态</dt>
+            <dd>@RuntimeStatusText</dd>
+        </div>
+        <div>
+            <dt>最近启动</dt>
+            <dd>@RuntimeStartedAt</dd>
+        </div>
+        <div>
+            <dt>最近停止</dt>
+            <dd>@RuntimeStoppedAt</dd>
+        </div>
+        <div>
+            <dt>错误信息</dt>
+            <dd>@RuntimeError</dd>
+        </div>
+    </dl>
+</article>
+
+@code {
+    [Parameter]
+    public bool IsRuntimeWorking { get; set; }
+
+    [Parameter]
+    public string RuntimeStatusText { get; set; } = string.Empty;
+
+    [Parameter]
+    public string RuntimeStartedAt { get; set; } = string.Empty;
+
+    [Parameter]
+    public string RuntimeStoppedAt { get; set; } = string.Empty;
+
+    [Parameter]
+    public string RuntimeError { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback OnStartListening { get; set; }
+
+    [Parameter]
+    public EventCallback OnStopListening { get; set; }
+}

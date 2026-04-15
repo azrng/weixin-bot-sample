@@ -19,200 +19,39 @@
     Title="上下文续聊与消息记录"
     Description="把日常收发消息相关操作放到一页里，避免和媒体、联调流程混在一起。"
     Facts="@GetWorkspaceFacts()"
-    NavigationItems="@WorkspaceNavItems">
-    <article class="demo-card demo-card--wide">
-        <div class="demo-card__header">
-            <div>
-                <p class="demo-card__eyebrow">上下文缓存</p>
-                <h2>已知联系人</h2>
-            </div>
-        </div>
-        @if (State?.KnownContacts.Count > 0)
-        {
-            <div class="table-responsive">
-                <table class="table demo-table">
-                    <thead>
-                        <tr>
-                            <th>最近会话</th>
-                            <th>联系人</th>
-                            <th>ExternalChatId</th>
-                            <th>ContextToken</th>
-                            <th>最近消息</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var contact in State.KnownContacts)
-                        {
-                            <tr>
-                                <td>@FormatDateTime(contact.LastMessageAt)</td>
-                                <td>@DisplayOrFallback(contact.SenderName, contact.ExternalUserId)</td>
-                                <td class="technical-cell">@contact.ExternalChatId</td>
-                                <td class="technical-cell">@contact.LatestContextToken</td>
-                                <td class="technical-cell">@DisplayOrFallback(contact.LastMessageText, "-")</td>
-                                <td class="text-end">
-                                    <button class="btn btn-sm btn-outline-primary" @onclick="@(() => UseKnownContact(contact))">带入推送</button>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
-        else
-        {
-            <div class="empty-block empty-block--compact">
-                <div class="empty-block__icon">CTX</div>
-                <p>收到用户消息后，这里会缓存最近联系人和 `context_token`，方便主动推送继续对话。</p>
-            </div>
-        }
-    </article>
+    NavigationItems="@DemoWorkspaceNavigation.Messages">
+    <MessagesKnownContactsSection
+        Contacts="@(State?.KnownContacts ?? [])"
+        FormatDateTime="FormatDateTime"
+        DisplayOrFallback="DisplayOrFallback"
+        OnUseKnownContact="UseKnownContact" />
 
-    <article class="demo-card demo-card--wide">
-        <div class="demo-card__header">
-            <div>
-                <p class="demo-card__eyebrow">主动推送示例</p>
-                <h2>向用户发送消息</h2>
-            </div>
-            <button class="btn btn-primary" @onclick="SendPushAsync" disabled="@IsPushing">
-                @(IsPushing ? "发送中..." : "推送演示消息")
-            </button>
-        </div>
-        @if (HasActiveAutoFillPrompt())
-        {
-            <div class="autofill-banner">
-                <strong>@GetAutoFillPromptTitle()</strong>
-                <p>@GetAutoFillPromptMessage()</p>
-                <small class="technical-value">ExternalChatId：@ActiveAutoFillPrompt!.ExternalChatId</small>
-                <small class="technical-value">ContextToken：@ActiveAutoFillPrompt!.ContextToken</small>
-            </div>
-        }
-        @if (ShouldShowPushReadinessNotice())
-        {
-            <div class="result-panel result-panel--warning">
-                <p><strong>主动推送前先准备会话目标</strong></p>
-                <small>@GetPushReadinessNotice()</small>
-            </div>
-        }
-        @if (!string.IsNullOrWhiteSpace(PushValidationMessage))
-        {
-            <div class="result-panel result-panel--error">
-                <p><strong>还不能直接推送</strong></p>
-                <small>@PushValidationMessage</small>
-            </div>
-        }
-        <div class="demo-form-grid">
-            <label class="demo-field">
-                <span>ExternalChatId</span>
-                <input class="@GetPushFieldClass(PushRequest.ExternalChatId, ActiveAutoFillPrompt?.ExternalChatId ?? string.Empty)" @bind="PushRequest.ExternalChatId" @bind:after="ClearPushValidationMessage" />
-            </label>
-            <label class="demo-field">
-                <span>ContextToken</span>
-                <input class="@GetPushFieldClass(PushRequest.ContextToken, ActiveAutoFillPrompt?.ContextToken ?? string.Empty)" @bind="PushRequest.ContextToken" @bind:after="ClearPushValidationMessage" />
-            </label>
-            <label class="demo-field demo-field--full">
-                <span>推送内容</span>
-                <textarea class="@GetPushFieldClass(PushRequest.Content, string.Empty) demo-textarea" @bind="PushRequest.Content" @bind:after="ClearPushValidationMessage"></textarea>
-            </label>
-            <div class="demo-field demo-field--full demo-field--hint">
-                <span>默认目标</span>
-                <small>@GetPushTargetHint()</small>
-            </div>
-        </div>
+    <MessagesPushSection
+        PushRequest="PushRequest"
+        IsPushing="@IsPushing"
+        ShowAutoFillPrompt="@HasActiveAutoFillPrompt()"
+        AutoFillPromptTitle="@GetAutoFillPromptTitle()"
+        AutoFillPromptMessage="@GetAutoFillPromptMessage()"
+        AutoFillExternalChatId="@ActiveAutoFillPrompt?.ExternalChatId"
+        AutoFillContextToken="@ActiveAutoFillPrompt?.ContextToken"
+        ShowReadinessNotice="@ShouldShowPushReadinessNotice()"
+        ReadinessNotice="@GetPushReadinessNotice()"
+        PushValidationMessage="@PushValidationMessage"
+        PushTargetHint="@GetPushTargetHint()"
+        LastPushResult="@State?.LastPushResult"
+        GetPushFieldClass="GetPushFieldClass"
+        FormatDateTime="FormatDateTime"
+        OnSend="SendPushAsync"
+        OnClearValidation="ClearPushValidationMessage" />
 
-        @if (State?.LastPushResult is not null)
-        {
-            <div class="result-panel @(State.LastPushResult.Succeeded ? "result-panel--success" : "result-panel--error")">
-                <p>@State.LastPushResult.Message</p>
-                <small>发送时间：@FormatDateTime(State.LastPushResult.SentAt)</small>
-                <small class="technical-value">响应摘要：@State.LastPushResult.ResponseSummary</small>
-            </div>
-        }
-    </article>
+    <MessagesInboundSection
+        Messages="@(State?.Messages ?? [])"
+        FormatDateTime="FormatDateTime"
+        DisplayOrFallback="DisplayOrFallback"
+        GetReplyStatusClass="GetReplyStatusClass"
+        GetReplyStatusSummary="GetReplyStatusSummary" />
 
-    <article class="demo-card demo-card--wide">
-        <div class="demo-card__header">
-            <div>
-                <p class="demo-card__eyebrow">最近入站消息</p>
-                <h2>微信用户消息记录</h2>
-            </div>
-        </div>
-        @if (State?.Messages.Count > 0)
-        {
-            <div class="table-responsive">
-                <table class="table demo-table">
-                    <thead>
-                        <tr>
-                            <th>时间</th>
-                            <th>发送者</th>
-                            <th>会话 ID</th>
-                            <th>原文</th>
-                            <th>回复结果</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var item in State.Messages)
-                        {
-                            <tr>
-                                <td>@FormatDateTime(item.CreatedAt)</td>
-                                <td>@DisplayOrFallback(item.SenderName, item.ExternalUserId)</td>
-                                <td class="technical-cell">@item.ExternalChatId</td>
-                                <td class="technical-cell">@item.Text</td>
-                                <td class="technical-cell">
-                                    <span class="@GetReplyStatusClass(item)">@GetReplyStatusSummary(item)</span>
-                                    <div class="demo-table__subtext">@item.ReplyStatus</div>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
-        else
-        {
-            <div class="empty-block empty-block--compact">
-                <div class="empty-block__icon">MSG</div>
-                <p>监听启动后，收到的微信消息会显示在这里。</p>
-            </div>
-        }
-    </article>
-
-    <article class="demo-card demo-card--wide">
-        <div class="demo-card__header">
-            <div>
-                <p class="demo-card__eyebrow">操作日志</p>
-                <h2>关键链路可视化</h2>
-            </div>
-        </div>
-        @if (State?.Logs.Count > 0)
-        {
-            <ul class="log-list">
-                @foreach (var item in State.Logs)
-                {
-                    <li class="log-list__item">
-                        <span class="log-list__time">@FormatDateTime(item.CreatedAt)</span>
-                        <span class="log-list__badge log-list__badge--@item.Level.ToLowerInvariant()">@item.Level</span>
-                        <span class="log-list__message">@item.Message</span>
-                    </li>
-                }
-            </ul>
-        }
-        else
-        {
-            <div class="empty-block empty-block--compact">
-                <div class="empty-block__icon">LOG</div>
-                <p>操作日志会在这里实时沉淀，方便演示和排查。</p>
-            </div>
-        }
-    </article>
+    <MessagesLogsSection
+        Logs="@(State?.Logs ?? [])"
+        FormatDateTime="FormatDateTime" />
 </DemoWorkspaceShell>
-
-@code {
-    private static readonly IReadOnlyList<DemoWorkspaceShell.WorkspaceNavItem> WorkspaceNavItems =
-    [
-        new("/", "01", "总览", "绑定、监听、配置与能力矩阵"),
-        new("/messages", "02", "消息", "联系人、主动推送、入站记录与日志", NavLinkMatch.All),
-        new("/media", "03", "媒体", "上传、发送、下载回读与技术细节"),
-        new("/checklist", "04", "联调", "真实账号检查项与环境证据"),
-    ];
-}

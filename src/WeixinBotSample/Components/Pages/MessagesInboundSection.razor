@@ -1,0 +1,65 @@
+@namespace WeixinBotSample.Components.Pages
+
+<article class="demo-card demo-card--wide">
+    <div class="demo-card__header">
+        <div>
+            <p class="demo-card__eyebrow">最近入站消息</p>
+            <h2>微信用户消息记录</h2>
+        </div>
+    </div>
+    @if (Messages.Count > 0)
+    {
+        <div class="table-responsive">
+            <table class="table demo-table">
+                <thead>
+                    <tr>
+                        <th>时间</th>
+                        <th>发送者</th>
+                        <th>会话 ID</th>
+                        <th>原文</th>
+                        <th>回复结果</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Messages)
+                    {
+                        <tr>
+                            <td>@FormatDateTime(item.CreatedAt)</td>
+                            <td>@DisplayOrFallback(item.SenderName, item.ExternalUserId)</td>
+                            <td class="technical-cell">@item.ExternalChatId</td>
+                            <td class="technical-cell">@item.Text</td>
+                            <td class="technical-cell">
+                                <span class="@GetReplyStatusClass(item)">@GetReplyStatusSummary(item)</span>
+                                <div class="demo-table__subtext">@item.ReplyStatus</div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="empty-block empty-block--compact">
+            <div class="empty-block__icon">MSG</div>
+            <p>监听启动后，收到的微信消息会显示在这里。</p>
+        </div>
+    }
+</article>
+
+@code {
+    [Parameter]
+    public IReadOnlyList<WeixinMessageRecord> Messages { get; set; } = [];
+
+    [Parameter]
+    public Func<DateTimeOffset?, string> FormatDateTime { get; set; } = _ => "-";
+
+    [Parameter]
+    public Func<string?, string, string> DisplayOrFallback { get; set; } = (_, fallback) => fallback;
+
+    [Parameter]
+    public Func<WeixinMessageRecord, string> GetReplyStatusClass { get; set; } = _ => string.Empty;
+
+    [Parameter]
+    public Func<WeixinMessageRecord, string> GetReplyStatusSummary { get; set; } = _ => string.Empty;
+}

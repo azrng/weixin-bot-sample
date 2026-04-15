@@ -1,0 +1,169 @@
+@namespace WeixinBotSample.Components.Pages
+
+<article class="demo-card demo-card--wide">
+    <div class="demo-card__header">
+        <div>
+            <p class="demo-card__eyebrow">媒体记录</p>
+            <h2>最近媒体消息与缓存状态</h2>
+        </div>
+    </div>
+    @if (Records.Count > 0)
+    {
+        <div class="table-responsive">
+            <table class="table demo-table">
+                <thead>
+                    <tr>
+                        <th>时间</th>
+                        <th>方向</th>
+                        <th>类型</th>
+                        <th>文件</th>
+                        <th>状态</th>
+                        <th>摘要</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Records)
+                    {
+                        <tr>
+                            <td>@FormatDateTime(item.UpdatedAt)</td>
+                            <td>@item.Direction</td>
+                            <td>@GetMediaTypeText(item.MediaType)</td>
+                            <td class="technical-cell">@DisplayOrFallback(item.FileName, "未命名媒体")</td>
+                            <td><span class="@GetMediaStatusClass(item.TransferStatus)">@GetMediaStatusText(item.TransferStatus)</span></td>
+                            <td class="technical-cell">@DisplayOrFallback(item.StatusMessage, item.ResponseSummary)</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="@(() => OnDownload.InvokeAsync(item.Id))" disabled="@IsSendingMedia || string.IsNullOrWhiteSpace(item.DownloadParam) || string.IsNullOrWhiteSpace(item.AesKey)">下载并解密</button>
+                            </td>
+                        </tr>
+                        @if (ShouldShowMediaTechnicalDetails(item))
+                        {
+                            <tr class="demo-table__detail-row">
+                                <td colspan="7">
+                                    <div class="technical-detail-grid">
+                                        @if (!string.IsNullOrWhiteSpace(item.AsrText))
+                                        {
+                                            <div class="technical-detail">
+                                                <span class="technical-detail__label">语音 ASR</span>
+                                                <span class="technical-value">@item.AsrText</span>
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(item.ContextToken))
+                                        {
+                                            <div class="technical-detail">
+                                                <span class="technical-detail__label">ContextToken</span>
+                                                <span class="technical-value">@item.ContextToken</span>
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(item.FileKey))
+                                        {
+                                            <div class="technical-detail">
+                                                <span class="technical-detail__label">FileKey</span>
+                                                <span class="technical-value">@item.FileKey</span>
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(item.Md5))
+                                        {
+                                            <div class="technical-detail">
+                                                <span class="technical-detail__label">MD5</span>
+                                                <span class="technical-value">@item.Md5</span>
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(item.AesKey))
+                                        {
+                                            <div class="technical-detail">
+                                                <span class="technical-detail__label">AES Key</span>
+                                                <span class="technical-value">@item.AesKey</span>
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(item.DownloadParam))
+                                        {
+                                            <div class="technical-detail">
+                                                <span class="technical-detail__label">Download Param</span>
+                                                <span class="technical-value">@item.DownloadParam</span>
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(item.LocalCachePath))
+                                        {
+                                            <div class="technical-detail">
+                                                <span class="technical-detail__label">缓存路径</span>
+                                                <span class="technical-value">@item.LocalCachePath</span>
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(item.TraceFilePath))
+                                        {
+                                            <div class="technical-detail">
+                                                <span class="technical-detail__label">Trace 文件</span>
+                                                <span class="technical-value">@item.TraceFilePath</span>
+                                            </div>
+                                        }
+                                        @if (item.FileSize > 0)
+                                        {
+                                            <div class="technical-detail">
+                                                <span class="technical-detail__label">明文大小</span>
+                                                <span class="technical-value">@FormatFileSize(item.FileSize)</span>
+                                            </div>
+                                        }
+                                        @if (item.EncryptedFileSize > 0)
+                                        {
+                                            <div class="technical-detail">
+                                                <span class="technical-detail__label">密文大小</span>
+                                                <span class="technical-value">@FormatFileSize(item.EncryptedFileSize)</span>
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(item.ResponseSummary))
+                                        {
+                                            <div class="technical-detail">
+                                                <span class="technical-detail__label">响应摘要</span>
+                                                <span class="technical-value">@item.ResponseSummary</span>
+                                            </div>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="empty-block empty-block--compact">
+            <div class="empty-block__icon">MED</div>
+            <p>媒体消息发出或收到后，这里会显示上传、发送、下载和解密的全过程状态。</p>
+        </div>
+    }
+</article>
+
+@code {
+    [Parameter]
+    public IReadOnlyList<MediaTransferRecord> Records { get; set; } = [];
+
+    [Parameter]
+    public bool IsSendingMedia { get; set; }
+
+    [Parameter]
+    public Func<DateTimeOffset?, string> FormatDateTime { get; set; } = _ => "-";
+
+    [Parameter]
+    public Func<string?, string, string> DisplayOrFallback { get; set; } = (_, fallback) => fallback;
+
+    [Parameter]
+    public Func<MediaTransferStatus, string> GetMediaStatusClass { get; set; } = _ => string.Empty;
+
+    [Parameter]
+    public Func<MediaTransferStatus, string> GetMediaStatusText { get; set; } = _ => string.Empty;
+
+    [Parameter]
+    public Func<MediaMessageType, string> GetMediaTypeText { get; set; } = _ => string.Empty;
+
+    [Parameter]
+    public Func<MediaTransferRecord, bool> ShouldShowMediaTechnicalDetails { get; set; } = _ => false;
+
+    [Parameter]
+    public Func<long, string> FormatFileSize { get; set; } = _ => "-";
+
+    [Parameter]
+    public EventCallback<string> OnDownload { get; set; }
+}

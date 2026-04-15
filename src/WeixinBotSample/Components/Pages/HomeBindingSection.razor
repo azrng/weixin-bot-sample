@@ -1,0 +1,72 @@
+@namespace WeixinBotSample.Components.Pages
+
+<article class="demo-card">
+    <div class="demo-card__header">
+        <div>
+            <p class="demo-card__eyebrow">微信绑定</p>
+            <h2>二维码接入</h2>
+        </div>
+        <div class="demo-action-group">
+            <button class="btn btn-outline-primary" @onclick="OnBind" disabled="@IsBinding">绑定微信</button>
+            <button class="btn btn-outline-secondary" @onclick="OnRefreshQrCode" disabled="@IsBinding">刷新二维码</button>
+        </div>
+    </div>
+    <div class="binding-panel">
+        @if (!string.IsNullOrWhiteSpace(QrCodeDataUrl))
+        {
+            <img src="@QrCodeDataUrl" alt="微信绑定二维码" class="binding-panel__qr" />
+        }
+        else
+        {
+            <div class="empty-block">
+                <div class="empty-block__icon">QR</div>
+                <p>点击“绑定微信”后，这里会显示扫码二维码。</p>
+            </div>
+        }
+
+        <dl class="meta-list">
+            <div>
+                <dt>绑定状态</dt>
+                <dd>@BindingStatusText</dd>
+            </div>
+            <div>
+                <dt>绑定账号</dt>
+                <dd>@BoundAccountName</dd>
+            </div>
+            <div>
+                <dt>二维码状态</dt>
+                <dd>@QrCodeStatusMessage</dd>
+            </div>
+            <div>
+                <dt>会话 Key</dt>
+                <dd>@SessionKey</dd>
+            </div>
+        </dl>
+    </div>
+</article>
+
+@code {
+    [Parameter]
+    public bool IsBinding { get; set; }
+
+    [Parameter]
+    public string BindingStatusText { get; set; } = string.Empty;
+
+    [Parameter]
+    public string QrCodeDataUrl { get; set; } = string.Empty;
+
+    [Parameter]
+    public string BoundAccountName { get; set; } = string.Empty;
+
+    [Parameter]
+    public string QrCodeStatusMessage { get; set; } = string.Empty;
+
+    [Parameter]
+    public string SessionKey { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback OnBind { get; set; }
+
+    [Parameter]
+    public EventCallback OnRefreshQrCode { get; set; }
+}

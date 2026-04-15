@@ -1,0 +1,118 @@
+@namespace WeixinBotSample.Components.Pages
+
+<article class="demo-card demo-card--wide">
+    <div class="demo-card__header">
+        <div>
+            <p class="demo-card__eyebrow">主动推送示例</p>
+            <h2>向用户发送消息</h2>
+        </div>
+        <button class="btn btn-primary" @onclick="OnSend" disabled="@IsPushing">
+            @(IsPushing ? "发送中..." : "推送演示消息")
+        </button>
+    </div>
+    @if (ShowAutoFillPrompt)
+    {
+        <div class="autofill-banner">
+            <strong>@AutoFillPromptTitle</strong>
+            <p>@AutoFillPromptMessage</p>
+            <small class="technical-value">ExternalChatId：@AutoFillExternalChatId</small>
+            <small class="technical-value">ContextToken：@AutoFillContextToken</small>
+        </div>
+    }
+    @if (ShowReadinessNotice)
+    {
+        <div class="result-panel result-panel--warning">
+            <p><strong>主动推送前先准备会话目标</strong></p>
+            <small>@ReadinessNotice</small>
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(PushValidationMessage))
+    {
+        <div class="result-panel result-panel--error">
+            <p><strong>还不能直接推送</strong></p>
+            <small>@PushValidationMessage</small>
+        </div>
+    }
+    <div class="demo-form-grid">
+        <label class="demo-field">
+            <span>ExternalChatId</span>
+            <input class="@GetPushFieldClass(PushRequest.ExternalChatId, AutoFillExternalChatId)" @bind="PushRequest.ExternalChatId" @bind:after="ClearValidationAsync" />
+        </label>
+        <label class="demo-field">
+            <span>ContextToken</span>
+            <input class="@GetPushFieldClass(PushRequest.ContextToken, AutoFillContextToken)" @bind="PushRequest.ContextToken" @bind:after="ClearValidationAsync" />
+        </label>
+        <label class="demo-field demo-field--full">
+            <span>推送内容</span>
+            <textarea class="@($"{GetPushFieldClass(PushRequest.Content, string.Empty)} demo-textarea")" @bind="PushRequest.Content" @bind:after="ClearValidationAsync"></textarea>
+        </label>
+        <div class="demo-field demo-field--full demo-field--hint">
+            <span>默认目标</span>
+            <small>@PushTargetHint</small>
+        </div>
+    </div>
+
+    @if (LastPushResult is not null)
+    {
+        <div class="result-panel @(LastPushResult.Succeeded ? "result-panel--success" : "result-panel--error")">
+            <p>@LastPushResult.Message</p>
+            <small>发送时间：@FormatDateTime(LastPushResult.SentAt)</small>
+            <small class="technical-value">响应摘要：@LastPushResult.ResponseSummary</small>
+        </div>
+    }
+</article>
+
+@code {
+    [Parameter]
+    public PushMessageRequest PushRequest { get; set; } = new();
+
+    [Parameter]
+    public bool IsPushing { get; set; }
+
+    [Parameter]
+    public bool ShowAutoFillPrompt { get; set; }
+
+    [Parameter]
+    public string AutoFillPromptTitle { get; set; } = string.Empty;
+
+    [Parameter]
+    public string AutoFillPromptMessage { get; set; } = string.Empty;
+
+    [Parameter]
+    public string AutoFillExternalChatId { get; set; } = string.Empty;
+
+    [Parameter]
+    public string AutoFillContextToken { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool ShowReadinessNotice { get; set; }
+
+    [Parameter]
+    public string ReadinessNotice { get; set; } = string.Empty;
+
+    [Parameter]
+    public string PushValidationMessage { get; set; } = string.Empty;
+
+    [Parameter]
+    public string PushTargetHint { get; set; } = string.Empty;
+
+    [Parameter]
+    public PushMessageResult? LastPushResult { get; set; }
+
+    [Parameter]
+    public Func<string, string, string> GetPushFieldClass { get; set; } = (current, _) => current;
+
+    [Parameter]
+    public Func<DateTimeOffset?, string> FormatDateTime { get; set; } = _ => "-";
+
+    [Parameter]
+    public EventCallback OnSend { get; set; }
+
+    [Parameter]
+    public EventCallback OnClearValidation { get; set; }
+
+    private Task ClearValidationAsync()
+    {
+        return OnClearValidation.InvokeAsync();
+    }
+}

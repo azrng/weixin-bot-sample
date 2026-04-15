@@ -1,0 +1,83 @@
+@namespace WeixinBotSample.Components.Pages
+
+<article class="demo-card demo-card--wide">
+    <div class="demo-card__header">
+        <div>
+            <p class="demo-card__eyebrow">基础配置</p>
+            <h2>连接参数</h2>
+        </div>
+        <button class="btn btn-primary" @onclick="OnSave" disabled="@IsSaving">
+            @SaveButtonText
+        </button>
+    </div>
+    <div class="demo-form-grid">
+        <label class="demo-field">
+            <span>网关地址</span>
+            <input class="form-control" @bind="ConfigurationModel.BaseUrl" @bind:after="MarkDirtyAsync" />
+        </label>
+        <label class="demo-field">
+            <span>RouteTag</span>
+            <input class="form-control" @bind="ConfigurationModel.RouteTag" @bind:after="MarkDirtyAsync" />
+        </label>
+        <label class="demo-field">
+            <span>Token</span>
+            <input class="form-control" @bind="ConfigurationModel.Token" @bind:after="MarkDirtyAsync" />
+        </label>
+        <label class="demo-field">
+            <span>账号 ID</span>
+            <input class="form-control" @bind="ConfigurationModel.AccountId" @bind:after="MarkDirtyAsync" />
+        </label>
+        <label class="demo-field">
+            <span>用户 ID</span>
+            <input class="form-control" @bind="ConfigurationModel.UserId" @bind:after="MarkDirtyAsync" />
+        </label>
+        <div class="demo-field demo-field--hint">
+            <span>协议版本</span>
+            <strong>@ChannelVersion</strong>
+            <small>当前 Demo 按 iLink Bot 标准链路固定使用 `base_info.channel_version`。</small>
+        </div>
+        <div class="demo-field demo-field--hint">
+            <span>最近更新</span>
+            <strong>@UpdatedAt</strong>
+            <small>绑定成功后，Token / 账号 / 用户信息会自动回写到这里。</small>
+        </div>
+        <div class="demo-field demo-field--hint">
+            <span>轮询游标</span>
+            <strong class="technical-value" title="@SyncCursor">
+                @SyncCursor
+            </strong>
+            <small>`get_updates_buf` 会持久化保存，应用重启后可继续从上次位置接收消息。</small>
+        </div>
+    </div>
+</article>
+
+@code {
+    [Parameter]
+    public DemoConfiguration ConfigurationModel { get; set; } = new();
+
+    [Parameter]
+    public bool IsSaving { get; set; }
+
+    [Parameter]
+    public string SaveButtonText { get; set; } = string.Empty;
+
+    [Parameter]
+    public string ChannelVersion { get; set; } = string.Empty;
+
+    [Parameter]
+    public string UpdatedAt { get; set; } = string.Empty;
+
+    [Parameter]
+    public string SyncCursor { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback OnSave { get; set; }
+
+    [Parameter]
+    public EventCallback OnMarkDirty { get; set; }
+
+    private Task MarkDirtyAsync()
+    {
+        return OnMarkDirty.InvokeAsync();
+    }
+}

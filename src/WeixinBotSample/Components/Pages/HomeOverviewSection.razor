@@ -1,0 +1,40 @@
+@namespace WeixinBotSample.Components.Pages
+
+<article class="demo-card demo-card--wide">
+    <div class="demo-card__header">
+        <div>
+            <p class="demo-card__eyebrow">演示看板</p>
+            <h2>关键指标与下一步建议</h2>
+        </div>
+    </div>
+    <div class="overview-grid">
+        @foreach (var insight in Insights)
+        {
+            <section class="overview-card overview-card--@insight.Tone">
+                <div class="overview-card__icon">
+                    <i class="@insight.Icon" aria-hidden="true"></i>
+                </div>
+                <div class="overview-card__body">
+                    <span class="overview-card__label">@insight.Title</span>
+                    <strong class="overview-card__value">@insight.Value</strong>
+                    <p>@insight.Detail</p>
+                </div>
+            </section>
+        }
+        <section class="overview-guidance overview-guidance--@Recommendation.Tone">
+            <p class="demo-card__eyebrow">建议动作</p>
+            <h3>@Recommendation.Title</h3>
+            <p>@Recommendation.Message</p>
+            <a class="btn btn-sm btn-outline-primary" href="@Recommendation.Href">@Recommendation.LinkText</a>
+        </section>
+    </div>
+</article>
+
+@code {
+    [Parameter]
+    public IReadOnlyList<DemoWorkspacePageBase.OverviewInsightItem> Insights { get; set; } = [];
+
+    [Parameter]
+    public DemoWorkspacePageBase.OverviewRecommendation Recommendation { get; set; } =
+        new("neutral", string.Empty, string.Empty, string.Empty, "/");
+}

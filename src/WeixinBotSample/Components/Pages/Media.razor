@@ -19,234 +19,35 @@
     Title="上传、发送与下载回读"
     Description="媒体消息演示单独成页，既方便观察长参数，也能避免整体页面被技术细节拖得太长。"
     Facts="@GetWorkspaceFacts()"
-    NavigationItems="@WorkspaceNavItems">
-    <article class="demo-card demo-card--wide">
-        <div class="demo-card__header">
-            <div>
-                <p class="demo-card__eyebrow">媒体消息演示</p>
-                <h2>上传、发送与下载回读</h2>
-            </div>
-            <button class="btn btn-primary" @onclick="SendMediaAsync" disabled="@IsSendingMedia">
-                @(IsSendingMedia ? "处理中..." : "发送媒体消息")
-            </button>
-        </div>
-        <div class="explanation-panel">
-            <p>媒体链路和文本不同。这里会按协议做四步：计算摘要、获取 `upload_param`、AES 加密上传到 CDN、再调用 `sendmessage` 发送媒体结构。这样后面收到消息时，才能反向下载并用 `aes_key` 解密回读。</p>
-            <p>这次联调已进一步把媒体结构中的 `len` 对齐到 AES 加密后的密文长度，并兼容 `aeskey` / `aes_key` 两种字段名，以降低协议字段差异导致的失败概率。</p>
-        </div>
-        @if (ShouldShowMediaSelfTargetHint())
-        {
-            <div class="result-panel result-panel--warning">
-                <p><strong>当前目标是绑定账号自己</strong></p>
-                <small>@GetMediaSelfTargetHint()</small>
-            </div>
-        }
-        @if (ShouldShowLatestMediaUploadFailureHint())
-        {
-            <div class="result-panel result-panel--warning">
-                <p><strong>最近一次媒体失败定位</strong></p>
-                <small>@GetLatestMediaUploadFailureHint()</small>
-            </div>
-        }
-        @if (!string.IsNullOrWhiteSpace(MediaValidationMessage))
-        {
-            <div class="result-panel result-panel--error">
-                <p><strong>还不能直接发送媒体消息</strong></p>
-                <small>@MediaValidationMessage</small>
-            </div>
-        }
-        <div class="demo-form-grid">
-            <label class="demo-field">
-                <span>ExternalChatId</span>
-                <input class="@GetMediaFieldClass(MediaRequest.ExternalChatId)" @bind="MediaRequest.ExternalChatId" @bind:after="ClearMediaValidationMessage" />
-            </label>
-            <label class="demo-field">
-                <span>ContextToken</span>
-                <input class="@GetMediaFieldClass(MediaRequest.ContextToken)" @bind="MediaRequest.ContextToken" @bind:after="ClearMediaValidationMessage" />
-            </label>
-            <label class="demo-field">
-                <span>媒体类型</span>
-                <select class="form-select" @bind="MediaRequest.MediaType" @bind:after="ClearMediaValidationMessage">
-                    <option value="@MediaMessageType.Image">图片</option>
-                    <option value="@MediaMessageType.Voice">语音</option>
-                    <option value="@MediaMessageType.File">文件</option>
-                    <option value="@MediaMessageType.Video">视频</option>
-                </select>
-            </label>
-            <div class="demo-field demo-field--hint">
-                <span>当前目标</span>
-                <small>@GetMediaTargetHint()</small>
-            </div>
-            @if (IsVoiceMediaType())
-            {
-                <label class="demo-field">
-                    <span>语音编码类型</span>
-                    <input class="@GetMediaFieldClass(MediaRequest.EncodeType <= 0 ? string.Empty : MediaRequest.EncodeType.ToString())" type="number" min="1" @bind="MediaRequest.EncodeType" @bind:after="ClearMediaValidationMessage" />
-                </label>
-                <label class="demo-field">
-                    <span>语音时长（毫秒）</span>
-                    <input class="@GetMediaFieldClass(MediaRequest.PlayTimeMilliseconds <= 0 ? string.Empty : MediaRequest.PlayTimeMilliseconds.ToString())" type="number" min="1" @bind="MediaRequest.PlayTimeMilliseconds" @bind:after="ClearMediaValidationMessage" />
-                </label>
-            }
-            <label class="demo-field demo-field--full">
-                <span>选择文件</span>
-                <InputFile OnChange="OnMediaFileChanged" class="form-control" />
-            </label>
-            <label class="demo-field demo-field--full">
-                <span>@GetMediaDescriptionLabel()</span>
-                <textarea class="form-control demo-textarea" @bind="MediaRequest.Description" @bind:after="ClearMediaValidationMessage"></textarea>
-            </label>
-            <div class="demo-field demo-field--full demo-field--hint">
-                <span>当前文件</span>
-                <strong class="technical-value">@DisplayOrFallback(SelectedMediaName, "尚未选择文件")</strong>
-                <small>大小：@FormatFileSize(SelectedMediaSize)；类型：@DisplayOrFallback(SelectedMediaContentType, "-")</small>
-            </div>
-        </div>
-    </article>
+    NavigationItems="@DemoWorkspaceNavigation.Media">
+    <MediaComposerSection
+        MediaRequest="MediaRequest"
+        IsSendingMedia="@IsSendingMedia"
+        ShowSelfTargetHint="@ShouldShowMediaSelfTargetHint()"
+        SelfTargetHint="@GetMediaSelfTargetHint()"
+        ShowLatestFailureHint="@ShouldShowLatestMediaUploadFailureHint()"
+        LatestFailureHint="@GetLatestMediaUploadFailureHint()"
+        MediaValidationMessage="@MediaValidationMessage"
+        MediaTargetHint="@GetMediaTargetHint()"
+        IsVoiceMediaType="@IsVoiceMediaType()"
+        MediaDescriptionLabel="@GetMediaDescriptionLabel()"
+        SelectedMediaName="@(DisplayOrFallback(SelectedMediaName, "尚未选择文件"))"
+        SelectedMediaSizeText="@(FormatFileSize(SelectedMediaSize))"
+        SelectedMediaContentType="@(DisplayOrFallback(SelectedMediaContentType, "-"))"
+        GetMediaFieldClass="GetMediaFieldClass"
+        OnSend="SendMediaAsync"
+        OnClearValidation="ClearMediaValidationMessage"
+        OnFileChanged="OnMediaFileChanged" />
 
-    <article class="demo-card demo-card--wide">
-        <div class="demo-card__header">
-            <div>
-                <p class="demo-card__eyebrow">媒体记录</p>
-                <h2>最近媒体消息与缓存状态</h2>
-            </div>
-        </div>
-        @if (State?.MediaRecords.Count > 0)
-        {
-            <div class="table-responsive">
-                <table class="table demo-table">
-                    <thead>
-                        <tr>
-                            <th>时间</th>
-                            <th>方向</th>
-                            <th>类型</th>
-                            <th>文件</th>
-                            <th>状态</th>
-                            <th>摘要</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var item in State.MediaRecords)
-                        {
-                            <tr>
-                                <td>@FormatDateTime(item.UpdatedAt)</td>
-                                <td>@item.Direction</td>
-                                <td>@GetMediaTypeText(item.MediaType)</td>
-                                <td class="technical-cell">@DisplayOrFallback(item.FileName, "未命名媒体")</td>
-                                <td><span class="@GetMediaStatusClass(item.TransferStatus)">@GetMediaStatusText(item.TransferStatus)</span></td>
-                                <td class="technical-cell">@DisplayOrFallback(item.StatusMessage, item.ResponseSummary)</td>
-                                <td class="text-end">
-                                    <button class="btn btn-sm btn-outline-primary" @onclick="@(() => DownloadMediaAsync(item.Id))" disabled="@IsSendingMedia || string.IsNullOrWhiteSpace(item.DownloadParam) || string.IsNullOrWhiteSpace(item.AesKey)">下载并解密</button>
-                                </td>
-                            </tr>
-                            @if (ShouldShowMediaTechnicalDetails(item))
-                            {
-                                <tr class="demo-table__detail-row">
-                                    <td colspan="7">
-                                        <div class="technical-detail-grid">
-                                            @if (!string.IsNullOrWhiteSpace(item.AsrText))
-                                            {
-                                                <div class="technical-detail">
-                                                    <span class="technical-detail__label">语音 ASR</span>
-                                                    <span class="technical-value">@item.AsrText</span>
-                                                </div>
-                                            }
-                                            @if (!string.IsNullOrWhiteSpace(item.ContextToken))
-                                            {
-                                                <div class="technical-detail">
-                                                    <span class="technical-detail__label">ContextToken</span>
-                                                    <span class="technical-value">@item.ContextToken</span>
-                                                </div>
-                                            }
-                                            @if (!string.IsNullOrWhiteSpace(item.FileKey))
-                                            {
-                                                <div class="technical-detail">
-                                                    <span class="technical-detail__label">FileKey</span>
-                                                    <span class="technical-value">@item.FileKey</span>
-                                                </div>
-                                            }
-                                            @if (!string.IsNullOrWhiteSpace(item.Md5))
-                                            {
-                                                <div class="technical-detail">
-                                                    <span class="technical-detail__label">MD5</span>
-                                                    <span class="technical-value">@item.Md5</span>
-                                                </div>
-                                            }
-                                            @if (!string.IsNullOrWhiteSpace(item.AesKey))
-                                            {
-                                                <div class="technical-detail">
-                                                    <span class="technical-detail__label">AES Key</span>
-                                                    <span class="technical-value">@item.AesKey</span>
-                                                </div>
-                                            }
-                                            @if (!string.IsNullOrWhiteSpace(item.DownloadParam))
-                                            {
-                                                <div class="technical-detail">
-                                                    <span class="technical-detail__label">Download Param</span>
-                                                    <span class="technical-value">@item.DownloadParam</span>
-                                                </div>
-                                            }
-                                            @if (!string.IsNullOrWhiteSpace(item.LocalCachePath))
-                                            {
-                                                <div class="technical-detail">
-                                                    <span class="technical-detail__label">缓存路径</span>
-                                                    <span class="technical-value">@item.LocalCachePath</span>
-                                                </div>
-                                            }
-                                            @if (!string.IsNullOrWhiteSpace(item.TraceFilePath))
-                                            {
-                                                <div class="technical-detail">
-                                                    <span class="technical-detail__label">Trace 文件</span>
-                                                    <span class="technical-value">@item.TraceFilePath</span>
-                                                </div>
-                                            }
-                                            @if (item.FileSize > 0)
-                                            {
-                                                <div class="technical-detail">
-                                                    <span class="technical-detail__label">明文大小</span>
-                                                    <span class="technical-value">@FormatFileSize(item.FileSize)</span>
-                                                </div>
-                                            }
-                                            @if (item.EncryptedFileSize > 0)
-                                            {
-                                                <div class="technical-detail">
-                                                    <span class="technical-detail__label">密文大小</span>
-                                                    <span class="technical-value">@FormatFileSize(item.EncryptedFileSize)</span>
-                                                </div>
-                                            }
-                                            @if (!string.IsNullOrWhiteSpace(item.ResponseSummary))
-                                            {
-                                                <div class="technical-detail">
-                                                    <span class="technical-detail__label">响应摘要</span>
-                                                    <span class="technical-value">@item.ResponseSummary</span>
-                                                </div>
-                                            }
-                                        </div>
-                                    </td>
-                                </tr>
-                            }
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
-        else
-        {
-            <div class="empty-block empty-block--compact">
-                <div class="empty-block__icon">MED</div>
-                <p>媒体消息发出或收到后，这里会显示上传、发送、下载和解密的全过程状态。</p>
-            </div>
-        }
-    </article>
+    <MediaRecordsSection
+        Records="@(State?.MediaRecords ?? [])"
+        IsSendingMedia="@IsSendingMedia"
+        FormatDateTime="FormatDateTime"
+        DisplayOrFallback="DisplayOrFallback"
+        GetMediaStatusClass="GetMediaStatusClass"
+        GetMediaStatusText="GetMediaStatusText"
+        GetMediaTypeText="GetMediaTypeText"
+        ShouldShowMediaTechnicalDetails="ShouldShowMediaTechnicalDetails"
+        FormatFileSize="FormatFileSize"
+        OnDownload="DownloadMediaAsync" />
 </DemoWorkspaceShell>
-
-@code {
-    private static readonly IReadOnlyList<DemoWorkspaceShell.WorkspaceNavItem> WorkspaceNavItems =
-    [
-        new("/", "01", "总览", "绑定、监听、配置与能力矩阵"),
-        new("/messages", "02", "消息", "联系人、主动推送、入站记录与日志"),
-        new("/media", "03", "媒体", "上传、发送、下载回读与技术细节", NavLinkMatch.All),
-        new("/checklist", "04", "联调", "真实账号检查项与环境证据"),
-    ];
-}

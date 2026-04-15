@@ -1,0 +1,48 @@
+@namespace WeixinBotSample.Components.Pages
+
+<article class="demo-card demo-card--wide">
+    <div class="demo-card__header">
+        <div>
+            <p class="demo-card__eyebrow">协议说明</p>
+            <h2>能力总览与限制提示</h2>
+        </div>
+    </div>
+    <div class="explanation-panel">
+        <ul class="list-unstyled d-grid gap-2 mb-0">
+            <li>首页除了告诉观众“能做什么”，也会明确解释关键协议动作为什么这样设计。</li>
+            <li>`getconfig` 先拿 `typing_ticket`，媒体链路则先加密再上传到 `c2c` 域名，避免把文件流程和文本流程混为一谈。</li>
+            <li>对历史回溯、群聊边界、速率限制等仍缺官方明确定义的能力，页面会持续标注说明，而不是假装完全支持。</li>
+        </ul>
+    </div>
+    <div class="table-responsive">
+        <table class="table demo-table">
+            <thead>
+                <tr>
+                    <th>场景</th>
+                    <th>当前状态</th>
+                    <th>页面入口</th>
+                    <th>说明</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var capability in Capabilities)
+                {
+                    <tr>
+                        <td>@capability.Scene</td>
+                        <td><span class="@GetCapabilityStatusClass(capability.Status)">@capability.Status</span></td>
+                        <td>@capability.Entry</td>
+                        <td class="technical-cell">@capability.Summary</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</article>
+
+@code {
+    [Parameter]
+    public IEnumerable<DemoWorkspacePageBase.ProtocolCapabilityView> Capabilities { get; set; } = [];
+
+    [Parameter]
+    public Func<string, string> GetCapabilityStatusClass { get; set; } = _ => string.Empty;
+}

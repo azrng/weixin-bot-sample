@@ -1,0 +1,102 @@
+@namespace WeixinBotSample.Components.Pages
+
+<article class="demo-card">
+    <div class="demo-card__header">
+        <div>
+            <p class="demo-card__eyebrow">协议自检</p>
+            <h2>连接与 Typing 状态</h2>
+        </div>
+        <button class="btn btn-outline-primary" @onclick="OnValidateConnection" disabled="@IsCheckingConnection">
+            @(IsCheckingConnection ? "检测中..." : "验证连接")
+        </button>
+    </div>
+    <dl class="meta-list">
+        <div>
+            <dt>最近自检</dt>
+            <dd>@LastCheckAt</dd>
+        </div>
+        <div>
+            <dt>自检结果</dt>
+            <dd>@LastCheckMessage</dd>
+        </div>
+        <div>
+            <dt>Typing Ticket</dt>
+            <dd class="technical-value" title="@TypingTicket">@TypingTicket</dd>
+        </div>
+        <div>
+            <dt>Ticket 更新时间</dt>
+            <dd>@TypingTicketUpdatedAt</dd>
+        </div>
+    </dl>
+</article>
+
+<article class="demo-card">
+    <div class="demo-card__header">
+        <div>
+            <p class="demo-card__eyebrow">自动回复</p>
+            <h2>固定祝福语</h2>
+        </div>
+    </div>
+    <div class="greeting-panel">
+        <p class="greeting-panel__primary">@PrimaryGreeting</p>
+        <p class="greeting-panel__secondary">最近一次回复：@LatestReplyText</p>
+    </div>
+</article>
+
+@if (ShowLatestResponse)
+{
+    <article class="demo-card demo-card--wide">
+        <div class="demo-card__header">
+            <div>
+                <p class="demo-card__eyebrow">最近连接回执</p>
+                <h2>自检响应摘要</h2>
+            </div>
+        </div>
+        <div class="result-panel @(IsLatestResponseSuccess ? "result-panel--success" : "result-panel--error")">
+            <p>@LatestResponseMessage</p>
+            <small>最近自检时间：@LatestResponseCheckedAt</small>
+            <small class="technical-value">响应摘要：@LatestResponseSummary</small>
+        </div>
+    </article>
+}
+
+@code {
+    [Parameter]
+    public bool IsCheckingConnection { get; set; }
+
+    [Parameter]
+    public string LastCheckAt { get; set; } = string.Empty;
+
+    [Parameter]
+    public string LastCheckMessage { get; set; } = string.Empty;
+
+    [Parameter]
+    public string TypingTicket { get; set; } = string.Empty;
+
+    [Parameter]
+    public string TypingTicketUpdatedAt { get; set; } = string.Empty;
+
+    [Parameter]
+    public string PrimaryGreeting { get; set; } = string.Empty;
+
+    [Parameter]
+    public string LatestReplyText { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool ShowLatestResponse { get; set; }
+
+    [Parameter]
+    public bool IsLatestResponseSuccess { get; set; }
+
+    [Parameter]
+    public string LatestResponseMessage { get; set; } = string.Empty;
+
+    [Parameter]
+    public string LatestResponseCheckedAt { get; set; } = string.Empty;
+
+    [Parameter]
+    public string LatestResponseSummary { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback OnValidateConnection { get; set; }
+}
