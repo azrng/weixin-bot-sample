@@ -15,6 +15,47 @@ public sealed partial class WeixinBotDemoService(
     JsonStateStore stateStore,
     FixedGreetingService fixedGreetingService,
     IWebHostEnvironment environment,
-    ILogger<WeixinBotDemoService> logger)
+    ILogger<WeixinBotDemoService> logger) : IAsyncDisposable
 {
+    public event EventHandler? StateChanged;
+
+    private bool _disposed;
+
+    private void NotifyStateChanged()
+    {
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
+        _bindingCancellation?.Cancel();
+        _pollingCancellation?.Cancel();
+
+        var tasks = new[] { _bindingTask, _pollingTask }
+            .Where(static task => task is not null)
+            .Cast<Task>()
+            .ToArray();
+
+        if (tasks.Length > 0)
+        {
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        _bindingCancellation?.Dispose();
+        _pollingCancellation?.Dispose();
+        _gate.Dispose();
+    }
 }

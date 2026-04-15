@@ -22,4 +22,11 @@
     <ProjectReference Include="..\..\src\WeixinBotSample\WeixinBotSample.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="artifacts\**\*.cs" />
+    <Content Remove="artifacts\**" />
+    <EmbeddedResource Remove="artifacts\**" />
+    <None Remove="artifacts\**" />
+  </ItemGroup>
+
 </Project>

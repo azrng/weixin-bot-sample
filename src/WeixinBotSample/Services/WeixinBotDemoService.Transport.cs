@@ -416,14 +416,16 @@ public sealed partial class WeixinBotDemoService
         public async Task<UploadMediaResult> UploadEncryptedMediaAsync(
             string uploadParam,
             string fileKey,
-            byte[] encryptedBytes,
+            Stream encryptedStream,
+            long encryptedLength,
             string contentType,
             CancellationToken cancellationToken)
         {
             var uploadUrl = $"https://novac2c.cdn.weixin.qq.com/c2c/upload?encrypted_query_param={Uri.EscapeDataString(uploadParam)}&filekey={Uri.EscapeDataString(fileKey)}";
             using var request = new HttpRequestMessage(HttpMethod.Post, uploadUrl);
-            request.Content = new ByteArrayContent(encryptedBytes);
+            request.Content = new StreamContent(encryptedStream);
             request.Content.Headers.ContentType = new MediaTypeHeaderValue(string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType);
+            request.Content.Headers.ContentLength = encryptedLength;
 
             using var response = await httpClient.SendAsync(request, cancellationToken);
             var rawText = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -445,13 +447,13 @@ public sealed partial class WeixinBotDemoService
                 throw new InvalidOperationException("CDN 上传成功，但 download_param 为空。");
             }
 
-            return new UploadMediaResult(downloadParam, uploadUrl, encryptedBytes.LongLength, contentType, rawText, response.StatusCode);
+            return new UploadMediaResult(downloadParam, uploadUrl, encryptedLength, contentType, rawText, response.StatusCode);
         }
 
-        public async Task<byte[]> DownloadEncryptedMediaAsync(string downloadParam, CancellationToken cancellationToken)
+        public async Task DownloadEncryptedMediaAsync(string downloadParam, Stream destination, CancellationToken cancellationToken)
         {
             var downloadUrl = $"https://novac2c.cdn.weixin.qq.com/c2c/download?encrypted_query_param={Uri.EscapeDataString(downloadParam)}";
-            using var response = await httpClient.GetAsync(downloadUrl, cancellationToken);
+            using var response = await httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                 var rawText = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -460,7 +462,8 @@ public sealed partial class WeixinBotDemoService
                     : rawText);
             }
 
-            return await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            await using var encryptedStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            await encryptedStream.CopyToAsync(destination, cancellationToken);
         }
 
         public async Task SendTypingAsync(string ilinkUserId, string typingTicket, CancellationToken cancellationToken)

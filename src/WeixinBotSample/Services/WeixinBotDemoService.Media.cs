@@ -8,11 +8,10 @@ public sealed partial class WeixinBotDemoService
 {
     public async Task SendMediaMessageAsync(
         MediaUploadRequest request,
-        byte[] fileContent,
+        string localFilePath,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(fileContent);
         await EnsureInitializedAsync(cancellationToken);
 
         DemoConfiguration configuration;
@@ -38,7 +37,13 @@ public sealed partial class WeixinBotDemoService
             throw new InvalidOperationException("媒体消息需要填写联系人、ContextToken 和文件名。");
         }
 
-        if (fileContent.Length == 0)
+        if (string.IsNullOrWhiteSpace(localFilePath) || !File.Exists(localFilePath))
+        {
+            throw new InvalidOperationException("媒体文件不存在，请重新选择后再发送。");
+        }
+
+        var fileInfo = new FileInfo(localFilePath);
+        if (fileInfo.Length == 0)
         {
             throw new InvalidOperationException("媒体文件内容为空，无法发送。");
         }
@@ -53,7 +58,7 @@ public sealed partial class WeixinBotDemoService
             Direction = "Outbound",
             FileName = request.FileName.Trim(),
             ContentType = request.ContentType.Trim(),
-            FileSize = fileContent.Length,
+            FileSize = fileInfo.Length,
             EncodeType = request.EncodeType,
             PlayTimeMilliseconds = request.PlayTimeMilliseconds,
             TransferStatus = MediaTransferStatus.Preparing,
@@ -67,32 +72,39 @@ public sealed partial class WeixinBotDemoService
         GetUploadUrlResult? uploadInfo = null;
         UploadMediaResult? uploadResult = null;
         SendMessageResult? sendResult = null;
+        var encryptedFilePath = BuildMediaWorkFilePath(record.Id, ".upload.bin");
 
         try
         {
             configuration = await EnsureTypingTicketAsync(client, configuration, cancellationToken);
             await TrySendTypingAsync(client, configuration, cancellationToken);
 
-            record.Md5 = Convert.ToHexStringLower(MD5.HashData(fileContent));
             record.FileKey = BuildFileKey(request.FileName);
-            var aesKeyBytes = RandomNumberGenerator.GetBytes(16);
-            var aesKey = Convert.ToBase64String(aesKeyBytes);
-            var encryptedBytes = EncryptAesEcb(fileContent, aesKeyBytes);
-            var encryptedLength = encryptedBytes.Length;
+            var encryptedMedia = await PrepareEncryptedMediaAsync(localFilePath, encryptedFilePath, cancellationToken);
 
-            record.AesKey = aesKey;
-            record.EncryptedFileSize = encryptedLength;
-            record.VideoSize = encryptedLength;
+            record.Md5 = encryptedMedia.Md5;
+            record.AesKey = encryptedMedia.AesKey;
+            record.EncryptedFileSize = encryptedMedia.EncryptedLength;
+            record.VideoSize = encryptedMedia.EncryptedLength;
             record.TransferStatus = MediaTransferStatus.Encrypting;
-            record.StatusMessage = $"已完成 AES 加密，准备申请上传参数。明文 {FormatByteLength(fileContent.Length)} / 密文 {FormatByteLength(encryptedLength)}。";
+            record.StatusMessage = $"已完成 AES 加密，准备申请上传参数。明文 {FormatByteLength(record.FileSize)} / 密文 {FormatByteLength(record.EncryptedFileSize)}。";
             await PersistMediaRecordAsync(record, cancellationToken);
 
-            uploadInfo = await client.GetUploadUrlAsync(record.FileKey, record.Md5, encryptedLength, cancellationToken);
+            uploadInfo = await client.GetUploadUrlAsync(record.FileKey, record.Md5, record.EncryptedFileSize, cancellationToken);
             record.TransferStatus = MediaTransferStatus.Uploading;
-            record.StatusMessage = $"已拿到上传参数，开始上传加密媒体。上传长度 {FormatByteLength(encryptedLength)}。";
+            record.StatusMessage = $"已拿到上传参数，开始上传加密媒体。上传长度 {FormatByteLength(record.EncryptedFileSize)}。";
             await PersistMediaRecordAsync(record, cancellationToken);
 
-            uploadResult = await client.UploadEncryptedMediaAsync(uploadInfo.UploadParam, record.FileKey, encryptedBytes, request.ContentType, cancellationToken);
+            await using (var encryptedStream = new FileStream(encryptedFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true))
+            {
+                uploadResult = await client.UploadEncryptedMediaAsync(
+                    uploadInfo.UploadParam,
+                    record.FileKey,
+                    encryptedStream,
+                    record.EncryptedFileSize,
+                    request.ContentType,
+                    cancellationToken);
+            }
 
             record.DownloadParam = uploadResult.DownloadParam;
             record.Media = uploadResult.DownloadParam;
@@ -171,6 +183,10 @@ public sealed partial class WeixinBotDemoService
             await RecordBackgroundLogAsync("Error", $"媒体消息发送失败：{exception.Message}");
             throw;
         }
+        finally
+        {
+            TryDeleteFile(encryptedFilePath);
+        }
     }
 
     public async Task DownloadMediaAsync(string recordId, CancellationToken cancellationToken = default)
@@ -204,15 +220,27 @@ public sealed partial class WeixinBotDemoService
         record.TransferStatus = MediaTransferStatus.Downloading;
         record.StatusMessage = "开始下载并解密媒体内容。";
         await PersistMediaRecordAsync(record, cancellationToken);
+        var fullPath = string.Empty;
 
         try
         {
-            var encrypted = await client.DownloadEncryptedMediaAsync(record.DownloadParam, cancellationToken);
-            var plainBytes = DecryptAesEcb(encrypted, Convert.FromBase64String(record.AesKey));
             var cacheDirectory = EnsureDirectory(Path.Combine(environment.ContentRootPath, "App_Data", "media-cache"));
             var safeFileName = CreateSafeCacheFileName(record);
-            var fullPath = Path.Combine(cacheDirectory, safeFileName);
-            await File.WriteAllBytesAsync(fullPath, plainBytes, cancellationToken);
+            fullPath = Path.Combine(cacheDirectory, safeFileName);
+            var aesKeyBytes = Convert.FromBase64String(record.AesKey);
+
+            await using (var outputStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
+            using (var aes = Aes.Create())
+            {
+                aes.Mode = CipherMode.ECB;
+                aes.Padding = PaddingMode.PKCS7;
+                aes.Key = aesKeyBytes;
+                using var decryptor = aes.CreateDecryptor();
+                using var cryptoStream = new CryptoStream(outputStream, decryptor, CryptoStreamMode.Write, leaveOpen: true);
+                await client.DownloadEncryptedMediaAsync(record.DownloadParam, cryptoStream, cancellationToken);
+                cryptoStream.FlushFinalBlock();
+                await outputStream.FlushAsync(cancellationToken);
+            }
 
             record.LocalCachePath = fullPath;
             record.TransferStatus = MediaTransferStatus.Downloaded;
@@ -222,6 +250,7 @@ public sealed partial class WeixinBotDemoService
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            TryDeleteFile(fullPath);
             record.TransferStatus = MediaTransferStatus.Failed;
             record.StatusMessage = exception.Message;
             await PersistMediaRecordAsync(record, cancellationToken);
@@ -360,6 +389,12 @@ public sealed partial class WeixinBotDemoService
         return path;
     }
 
+    private string BuildMediaWorkFilePath(string recordId, string suffix)
+    {
+        var workDirectory = EnsureDirectory(Path.Combine(environment.ContentRootPath, "App_Data", "media-work"));
+        return Path.Combine(workDirectory, $"{recordId}{suffix}");
+    }
+
     private static string CreateSafeCacheFileName(MediaTransferRecord record)
     {
         var originalName = string.IsNullOrWhiteSpace(record.FileName)
@@ -373,6 +408,54 @@ public sealed partial class WeixinBotDemoService
     private static string FormatByteLength(long length)
     {
         return $"{length} B";
+    }
+
+    private static async Task<PreparedEncryptedMedia> PrepareEncryptedMediaAsync(
+        string sourceFilePath,
+        string targetFilePath,
+        CancellationToken cancellationToken)
+    {
+        var aesKeyBytes = RandomNumberGenerator.GetBytes(16);
+        var aesKey = Convert.ToBase64String(aesKeyBytes);
+
+        await using var sourceStream = new FileStream(sourceFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
+        await using var targetStream = new FileStream(targetFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
+        using var aes = Aes.Create();
+        aes.Mode = CipherMode.ECB;
+        aes.Padding = PaddingMode.PKCS7;
+        aes.Key = aesKeyBytes;
+        using var encryptor = aes.CreateEncryptor();
+        using var cryptoStream = new CryptoStream(targetStream, encryptor, CryptoStreamMode.Write, leaveOpen: true);
+
+        var buffer = new byte[81920];
+        int read;
+        while ((read = await sourceStream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
+        {
+            hash.AppendData(buffer, 0, read);
+            await cryptoStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+        }
+
+        cryptoStream.FlushFinalBlock();
+        await targetStream.FlushAsync(cancellationToken);
+
+        var encryptedLength = targetStream.Length;
+        var md5 = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+        return new PreparedEncryptedMedia(md5, aesKey, encryptedLength);
+    }
+
+    private static void TryDeleteFile(string filePath)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
+        }
+        catch
+        {
+        }
     }
 
     private async Task<string> PersistMediaTraceAsync(
@@ -487,4 +570,6 @@ public sealed partial class WeixinBotDemoService
             _ => "文件",
         };
     }
+
+    private sealed record PreparedEncryptedMedia(string Md5, string AesKey, long EncryptedLength);
 }

@@ -26,7 +26,7 @@ public sealed partial class WeixinBotDemoService
             !existingSession.IsExpired &&
             DateTimeOffset.UtcNow - existingSession.StartedAt < TimeSpan.FromMilliseconds(ActiveLoginTtlMilliseconds))
         {
-            StartBindingWatcher(existingSession.SessionKey, configuration);
+            await StartBindingWatcherAsync(existingSession.SessionKey, configuration, cancellationToken);
             return;
         }
 
@@ -61,15 +61,26 @@ public sealed partial class WeixinBotDemoService
             _gate.Release();
         }
 
-        StartBindingWatcher(session.SessionKey, configuration);
+        await StartBindingWatcherAsync(session.SessionKey, configuration, cancellationToken);
     }
 
-    private void StartBindingWatcher(string sessionKey, DemoConfiguration configuration)
+    private async Task StartBindingWatcherAsync(string sessionKey, DemoConfiguration configuration, CancellationToken cancellationToken)
     {
-        _bindingCancellation?.Cancel();
-        _bindingCancellation?.Dispose();
-        _bindingCancellation = new CancellationTokenSource();
-        _bindingTask = Task.Run(() => WatchBindingAsync(sessionKey, configuration, _bindingCancellation.Token), CancellationToken.None);
+        CancellationTokenSource? previousBindingCancellation = null;
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            previousBindingCancellation = _bindingCancellation;
+            _bindingCancellation = new CancellationTokenSource();
+            _bindingTask = WatchBindingAsync(sessionKey, configuration, _bindingCancellation.Token);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        previousBindingCancellation?.Cancel();
+        previousBindingCancellation?.Dispose();
     }
 
     private async Task WatchBindingAsync(string sessionKey, DemoConfiguration configuration, CancellationToken cancellationToken)

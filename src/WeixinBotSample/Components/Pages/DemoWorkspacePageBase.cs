@@ -22,10 +22,10 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
     protected MediaUploadRequest MediaRequest = new();
     protected string LastSuggestedExternalChatId = string.Empty;
     protected string LastSuggestedContextToken = string.Empty;
-    protected byte[]? SelectedMediaContent;
     protected string SelectedMediaName = string.Empty;
     protected long SelectedMediaSize;
     protected string SelectedMediaContentType = string.Empty;
+    protected string SelectedMediaTempPath = string.Empty;
     protected bool IsLoading = true;
     protected bool IsSaving;
     protected bool IsBinding;
@@ -42,27 +42,33 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
     protected string MediaValidationMessage = string.Empty;
     protected string DismissedLoadError = string.Empty;
     protected string SaveButtonText => IsSaving ? "保存中..." : "保存配置";
+    private int _pendingReload;
 
     protected override async Task OnInitializedAsync()
     {
+        DemoService.StateChanged += OnDemoStateChanged;
         await LoadStateAsync(true);
-        _ = Task.Run(RefreshLoopAsync);
     }
 
-    protected async Task RefreshLoopAsync()
+    private void OnDemoStateChanged(object? sender, EventArgs args)
     {
-        while (!RefreshCancellation.IsCancellationRequested)
+        if (RefreshCancellation.IsCancellationRequested ||
+            Interlocked.Exchange(ref _pendingReload, 1) == 1)
+        {
+            return;
+        }
+
+        _ = InvokeAsync(async () =>
         {
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(2), RefreshCancellation.Token);
-                await InvokeAsync(() => LoadStateAsync(!ConfigurationDirty));
+                await LoadStateAsync(!ConfigurationDirty);
             }
-            catch (OperationCanceledException)
+            finally
             {
-                break;
+                Interlocked.Exchange(ref _pendingReload, 0);
             }
-        }
+        });
     }
 
     protected async Task LoadStateAsync(bool overwriteConfiguration)
@@ -187,18 +193,22 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
         var file = args.File;
         if (file is null)
         {
-            SelectedMediaContent = null;
-            SelectedMediaName = string.Empty;
-            SelectedMediaSize = 0;
-            SelectedMediaContentType = string.Empty;
+            ClearSelectedMediaFile();
             return;
         }
 
         const long maxAllowedSize = 20 * 1024 * 1024;
+        ClearSelectedMediaFile();
+
+        var cacheDirectory = Path.Combine(Path.GetTempPath(), "weixin-bot-sample", "media-upload-cache");
+        Directory.CreateDirectory(cacheDirectory);
+        var tempFilePath = Path.Combine(cacheDirectory, $"{Guid.NewGuid():N}{Path.GetExtension(file.Name)}");
+
         await using var stream = file.OpenReadStream(maxAllowedSize, RefreshCancellation.Token);
-        using var memory = new MemoryStream();
-        await stream.CopyToAsync(memory, RefreshCancellation.Token);
-        SelectedMediaContent = memory.ToArray();
+        await using var target = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+        await stream.CopyToAsync(target, RefreshCancellation.Token);
+
+        SelectedMediaTempPath = tempFilePath;
         SelectedMediaName = file.Name;
         SelectedMediaSize = file.Size;
         SelectedMediaContentType = file.ContentType;
@@ -217,13 +227,12 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
 
         MediaValidationMessage = string.Empty;
         NormalizeMediaRequestForSend();
-        var mediaContent = SelectedMediaContent!;
 
         MediaRequest.FileName = string.IsNullOrWhiteSpace(MediaRequest.FileName) ? SelectedMediaName : MediaRequest.FileName;
         MediaRequest.ContentType = string.IsNullOrWhiteSpace(MediaRequest.ContentType) ? SelectedMediaContentType : MediaRequest.ContentType;
 
         await ExecuteBusyAsync(
-            () => DemoService.SendMediaMessageAsync(MediaRequest.Clone(), mediaContent, RefreshCancellation.Token),
+            () => DemoService.SendMediaMessageAsync(MediaRequest.Clone(), SelectedMediaTempPath, RefreshCancellation.Token),
             () => IsSendingMedia = true,
             () => IsSendingMedia = false,
             overwriteConfiguration: true);
@@ -913,7 +922,7 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
             return false;
         }
 
-        if (SelectedMediaContent is null || SelectedMediaContent.Length == 0 || string.IsNullOrWhiteSpace(MediaRequest.FileName))
+        if (string.IsNullOrWhiteSpace(SelectedMediaTempPath) || !File.Exists(SelectedMediaTempPath) || string.IsNullOrWhiteSpace(MediaRequest.FileName))
         {
             message = "请先选择一个要发送的媒体文件。";
             return false;
@@ -966,11 +975,36 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        DemoService.StateChanged -= OnDemoStateChanged;
         if (!RefreshCancellation.IsCancellationRequested)
         {
             await RefreshCancellation.CancelAsync();
         }
 
+        ClearSelectedMediaFile();
         RefreshCancellation.Dispose();
+    }
+
+    private void ClearSelectedMediaFile()
+    {
+        var previousTempPath = SelectedMediaTempPath;
+
+        SelectedMediaTempPath = string.Empty;
+        SelectedMediaName = string.Empty;
+        SelectedMediaSize = 0;
+        SelectedMediaContentType = string.Empty;
+        MediaRequest.FileName = string.Empty;
+        MediaRequest.ContentType = string.Empty;
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(previousTempPath) && File.Exists(previousTempPath))
+            {
+                File.Delete(previousTempPath);
+            }
+        }
+        catch
+        {
+        }
     }
 }

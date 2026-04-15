@@ -72,6 +72,7 @@ public sealed partial class WeixinBotDemoService
         await EnsureInitializedAsync(cancellationToken);
 
         DemoConfiguration configuration;
+        CancellationTokenSource? previousPollingCancellation = null;
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -90,6 +91,9 @@ public sealed partial class WeixinBotDemoService
             _state.Configuration.RuntimeStartedAt = DateTimeOffset.UtcNow;
             _state.Configuration.RuntimeStoppedAt = null;
             RecordLogNoLock("Info", "已启动微信长轮询监听。");
+            previousPollingCancellation = _pollingCancellation;
+            _pollingCancellation = new CancellationTokenSource();
+            _pollingTask = RunPollingLoopAsync(configuration, _pollingCancellation.Token);
             await PersistStateNoLockAsync(cancellationToken);
         }
         finally
@@ -97,10 +101,8 @@ public sealed partial class WeixinBotDemoService
             _gate.Release();
         }
 
-        _pollingCancellation?.Cancel();
-        _pollingCancellation?.Dispose();
-        _pollingCancellation = new CancellationTokenSource();
-        _pollingTask = Task.Run(() => RunPollingLoopAsync(configuration, _pollingCancellation.Token), CancellationToken.None);
+        previousPollingCancellation?.Cancel();
+        previousPollingCancellation?.Dispose();
     }
 
     public async Task StopListeningAsync(CancellationToken cancellationToken = default)
@@ -358,7 +360,9 @@ public sealed partial class WeixinBotDemoService
     private async Task PersistStateNoLockAsync(CancellationToken cancellationToken)
     {
         _state.UpdatedAt = DateTimeOffset.UtcNow;
-        await stateStore.SaveAsync(_state, cancellationToken);
+        var snapshot = _state.Clone();
+        await stateStore.SaveAsync(snapshot, cancellationToken);
+        NotifyStateChanged();
     }
 
     private void RecordLogNoLock(string level, string message)

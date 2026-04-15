@@ -352,6 +352,7 @@ docs/
 .dotnet-cli
 .dotnet
 .appdata
+.verify/
 .nuget/
 
 NUL
