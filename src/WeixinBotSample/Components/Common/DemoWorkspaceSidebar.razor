@@ -1,0 +1,78 @@
+@using Microsoft.AspNetCore.Components.Routing
+
+<aside class="workspace-sidebar">
+    <div class="workspace-sidebar__header">
+        <p class="demo-card__eyebrow">演示工作台</p>
+        <h2>功能导航</h2>
+        <p>把总览、消息、媒体、联调拆开，避免一页过长。</p>
+    </div>
+
+    <section class="workspace-sidebar__panel">
+        <div class="workspace-panel__header">
+            <p class="demo-card__eyebrow">运行快照</p>
+            <h3>当前状态</h3>
+        </div>
+        <div class="workspace-status-stack">
+            <div class="workspace-status-row">
+                <span class="workspace-status-row__label">监听状态</span>
+                <span class="status-chip @RuntimeStatusClass">@RuntimeStatusText</span>
+            </div>
+            <div class="workspace-status-row">
+                <span class="workspace-status-row__label">绑定状态</span>
+                <span class="status-chip @BindingStatusClass">@BindingStatusText</span>
+            </div>
+        </div>
+    </section>
+
+    <nav class="workspace-nav" aria-label="演示导航">
+        @foreach (var item in NavigationItems)
+        {
+            <NavLink class="workspace-nav__link" href="@item.Href" Match="@item.Match">
+                <span class="workspace-nav__icon">@item.Icon</span>
+                <span class="workspace-nav__text">
+                    <strong>@item.Title</strong>
+                    <small>@item.Description</small>
+                </span>
+            </NavLink>
+        }
+    </nav>
+
+    @if (Facts.Count > 0)
+    {
+        <section class="workspace-sidebar__panel">
+            <div class="workspace-panel__header">
+                <p class="demo-card__eyebrow">数据快照</p>
+                <h3>当前规模</h3>
+            </div>
+            <div class="workspace-facts">
+                @foreach (var fact in Facts)
+                {
+                    <div class="workspace-fact workspace-fact--@fact.Tone">
+                        <span class="workspace-fact__label">@fact.Label</span>
+                        <strong class="workspace-fact__value">@fact.Value</strong>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+</aside>
+
+@code {
+    [Parameter]
+    public string RuntimeStatusText { get; set; } = string.Empty;
+
+    [Parameter]
+    public string RuntimeStatusClass { get; set; } = string.Empty;
+
+    [Parameter]
+    public string BindingStatusText { get; set; } = string.Empty;
+
+    [Parameter]
+    public string BindingStatusClass { get; set; } = string.Empty;
+
+    [Parameter]
+    public IReadOnlyList<DemoWorkspaceShell.WorkspaceNavItem> NavigationItems { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyList<DemoWorkspaceShell.WorkspaceFactItem> Facts { get; set; } = [];
+}

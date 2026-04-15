@@ -1,0 +1,89 @@
+@namespace WeixinBotSample.Components.Pages
+
+<article class="demo-card demo-card--wide">
+    <div class="demo-card__header">
+        <div>
+            <p class="demo-card__eyebrow">联调检查</p>
+            <h2>真实账号 Checklist</h2>
+        </div>
+        <button class="btn btn-outline-primary" @onclick="OnRunAll" disabled="@IsRunningAllChecklist">
+            @(IsRunningAllChecklist ? "检查中..." : "执行全部检查")
+        </button>
+    </div>
+    <div class="explanation-panel">
+        <p>这组检查项是为真实联调准备的。它不会假装替你完成真实验证，而是把“当前已经有证据的能力”和“还需要真实触发的场景”明确区分出来，避免演示时讲过头。</p>
+    </div>
+    @if (Items.Count > 0)
+    {
+        <div class="table-responsive">
+            <table class="table demo-table">
+                <thead>
+                    <tr>
+                        <th>检查项</th>
+                        <th>状态</th>
+                        <th>最近执行</th>
+                        <th>说明</th>
+                        <th>证据</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Items)
+                    {
+                        <tr>
+                            <td>@item.Name</td>
+                            <td><span class="@GetChecklistStatusClass(item.Status)">@GetChecklistStatusText(item.Status)</span></td>
+                            <td>@FormatDateTime(item.CheckedAt)</td>
+                            <td class="technical-cell">@item.Message</td>
+                            <td class="technical-cell">@DisplayOrFallback(item.Evidence, item.Description)</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="@(() => OnRunItem.InvokeAsync(item.Code))" disabled="@(IsRunningChecklist && ActiveChecklistCode == item.Code)">
+                                    @(IsRunningChecklist && ActiveChecklistCode == item.Code ? "执行中..." : "执行")
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="empty-block empty-block--compact">
+            <div class="empty-block__icon">CHK</div>
+            <p>Checklist 初始化后，这里会展示真实账号联调的步骤和证据摘要。</p>
+        </div>
+    }
+</article>
+
+@code {
+    [Parameter]
+    public IReadOnlyList<ChecklistItemRecord> Items { get; set; } = [];
+
+    [Parameter]
+    public bool IsRunningAllChecklist { get; set; }
+
+    [Parameter]
+    public bool IsRunningChecklist { get; set; }
+
+    [Parameter]
+    public string ActiveChecklistCode { get; set; } = string.Empty;
+
+    [Parameter]
+    public Func<DateTimeOffset?, string> FormatDateTime { get; set; } = _ => "-";
+
+    [Parameter]
+    public Func<string?, string, string> DisplayOrFallback { get; set; } = (_, fallback) => fallback;
+
+    [Parameter]
+    public Func<ChecklistItemStatus, string> GetChecklistStatusClass { get; set; } = _ => string.Empty;
+
+    [Parameter]
+    public Func<ChecklistItemStatus, string> GetChecklistStatusText { get; set; } = _ => string.Empty;
+
+    [Parameter]
+    public EventCallback OnRunAll { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnRunItem { get; set; }
+}

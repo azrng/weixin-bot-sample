@@ -20,116 +20,29 @@
     Description="这页不做花哨堆叠，重点是把已经验证的能力和还缺现场证据的环节分清楚。"
     Facts="@GetWorkspaceFacts()"
     NavigationItems="@DemoWorkspaceNavigation.Checklist">
-    <article class="demo-card">
-        <div class="demo-card__header">
-            <div>
-                <p class="demo-card__eyebrow">协议自检</p>
-                <h2>连接与 Typing 状态</h2>
-            </div>
-            <button class="btn btn-outline-primary" @onclick="ValidateConnectionAsync" disabled="@IsCheckingConnection">
-                @(IsCheckingConnection ? "检测中..." : "验证连接")
-            </button>
-        </div>
-        <dl class="meta-list">
-            <div>
-                <dt>最近自检</dt>
-                <dd>@FormatDateTime(State?.LastConnectionCheck?.CheckedAt)</dd>
-            </div>
-            <div>
-                <dt>自检结果</dt>
-                <dd>@DisplayOrFallback(State?.LastConnectionCheck?.Message, "尚未执行连接自检")</dd>
-            </div>
-            <div>
-                <dt>Typing Ticket</dt>
-                <dd class="technical-value">@DisplayOrFallback(State?.Configuration.TypingTicket, "未获取")</dd>
-            </div>
-            <div>
-                <dt>Ticket 更新时间</dt>
-                <dd>@FormatDateTime(State?.Configuration.TypingTicketUpdatedAt)</dd>
-            </div>
-        </dl>
-    </article>
+    <ChecklistConnectionSection
+        IsCheckingConnection="@IsCheckingConnection"
+        LastCheckAt="@(FormatDateTime(State?.LastConnectionCheck?.CheckedAt))"
+        LastCheckMessage="@(DisplayOrFallback(State?.LastConnectionCheck?.Message, "尚未执行连接自检"))"
+        TypingTicket="@(DisplayOrFallback(State?.Configuration.TypingTicket, "未获取"))"
+        TypingTicketUpdatedAt="@(FormatDateTime(State?.Configuration.TypingTicketUpdatedAt))"
+        OnValidateConnection="ValidateConnectionAsync" />
 
-    <article class="demo-card">
-        <div class="demo-card__header">
-            <div>
-                <p class="demo-card__eyebrow">当前环境</p>
-                <h2>联调上下文</h2>
-            </div>
-        </div>
-        <dl class="meta-list">
-            <div>
-                <dt>绑定状态</dt>
-                <dd>@GetBindingStatusText()</dd>
-            </div>
-            <div>
-                <dt>运行状态</dt>
-                <dd>@GetRuntimeStatusText()</dd>
-            </div>
-            <div>
-                <dt>最近联系人</dt>
-                <dd>@DisplayOrFallback(State?.KnownContacts.FirstOrDefault()?.ExternalChatId, "尚未接收到联系人上下文")</dd>
-            </div>
-            <div>
-                <dt>最近媒体记录</dt>
-                <dd>@DisplayOrFallback(State?.MediaRecords.FirstOrDefault()?.FileName, "尚无媒体联调记录")</dd>
-            </div>
-        </dl>
-    </article>
+    <ChecklistEnvironmentSection
+        BindingStatusText="@GetBindingStatusText()"
+        RuntimeStatusText="@GetRuntimeStatusText()"
+        LatestContact="@(DisplayOrFallback(State?.KnownContacts.FirstOrDefault()?.ExternalChatId, "尚未接收到联系人上下文"))"
+        LatestMediaRecord="@(DisplayOrFallback(State?.MediaRecords.FirstOrDefault()?.FileName, "尚无媒体联调记录"))" />
 
-    <article class="demo-card demo-card--wide">
-        <div class="demo-card__header">
-            <div>
-                <p class="demo-card__eyebrow">联调检查</p>
-                <h2>真实账号 Checklist</h2>
-            </div>
-            <button class="btn btn-outline-primary" @onclick="RunAllChecklistAsync" disabled="@IsRunningAllChecklist">
-                @(IsRunningAllChecklist ? "检查中..." : "执行全部检查")
-            </button>
-        </div>
-        <div class="explanation-panel">
-            <p>这组检查项是为真实联调准备的。它不会假装替你完成真实验证，而是把“当前已经有证据的能力”和“还需要真实触发的场景”明确区分出来，避免演示时讲过头。</p>
-        </div>
-        @if (State?.ChecklistItems.Count > 0)
-        {
-            <div class="table-responsive">
-                <table class="table demo-table">
-                    <thead>
-                        <tr>
-                            <th>检查项</th>
-                            <th>状态</th>
-                            <th>最近执行</th>
-                            <th>说明</th>
-                            <th>证据</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var item in State.ChecklistItems)
-                        {
-                            <tr>
-                                <td>@item.Name</td>
-                                <td><span class="@GetChecklistStatusClass(item.Status)">@GetChecklistStatusText(item.Status)</span></td>
-                                <td>@FormatDateTime(item.CheckedAt)</td>
-                                <td class="technical-cell">@item.Message</td>
-                                <td class="technical-cell">@DisplayOrFallback(item.Evidence, item.Description)</td>
-                                <td class="text-end">
-                                    <button class="btn btn-sm btn-outline-primary" @onclick="@(() => RunChecklistAsync(item.Code))" disabled="@(IsRunningChecklist && ActiveChecklistCode == item.Code)">
-                                        @(IsRunningChecklist && ActiveChecklistCode == item.Code ? "执行中..." : "执行")
-                                    </button>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
-        else
-        {
-            <div class="empty-block empty-block--compact">
-                <div class="empty-block__icon">CHK</div>
-                <p>Checklist 初始化后，这里会展示真实账号联调的步骤和证据摘要。</p>
-            </div>
-        }
-    </article>
+    <ChecklistItemsSection
+        Items="@(State?.ChecklistItems ?? [])"
+        IsRunningAllChecklist="@IsRunningAllChecklist"
+        IsRunningChecklist="@IsRunningChecklist"
+        ActiveChecklistCode="@ActiveChecklistCode"
+        FormatDateTime="FormatDateTime"
+        DisplayOrFallback="DisplayOrFallback"
+        GetChecklistStatusClass="GetChecklistStatusClass"
+        GetChecklistStatusText="GetChecklistStatusText"
+        OnRunAll="RunAllChecklistAsync"
+        OnRunItem="RunChecklistAsync" />
 </DemoWorkspaceShell>

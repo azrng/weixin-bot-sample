@@ -1,5 +1,3 @@
-@using Microsoft.AspNetCore.Components.Routing
-
 @if (ShowFloatingNotice)
 {
     <div class="floating-notice @(string.IsNullOrWhiteSpace(FloatingNoticeError) ? "floating-notice--warning" : "floating-notice--error")" role="alert" aria-live="assertive">
@@ -38,86 +36,20 @@ else
         </section>
 
         <section class="workspace-shell">
-            <aside class="workspace-sidebar">
-                <div class="workspace-sidebar__header">
-                    <p class="demo-card__eyebrow">演示工作台</p>
-                    <h2>功能导航</h2>
-                    <p>把总览、消息、媒体、联调拆开，避免一页过长。</p>
-                </div>
-
-                <section class="workspace-sidebar__panel">
-                    <div class="workspace-panel__header">
-                        <p class="demo-card__eyebrow">运行快照</p>
-                        <h3>当前状态</h3>
-                    </div>
-                    <div class="workspace-status-stack">
-                        <div class="workspace-status-row">
-                            <span class="workspace-status-row__label">监听状态</span>
-                            <span class="status-chip @RuntimeStatusClass">@RuntimeStatusText</span>
-                        </div>
-                        <div class="workspace-status-row">
-                            <span class="workspace-status-row__label">绑定状态</span>
-                            <span class="status-chip @BindingStatusClass">@BindingStatusText</span>
-                        </div>
-                    </div>
-                </section>
-
-                <nav class="workspace-nav" aria-label="演示导航">
-                    @foreach (var item in NavigationItems)
-                    {
-                        <NavLink class="workspace-nav__link" href="@item.Href" Match="@item.Match">
-                            <span class="workspace-nav__icon">@item.Icon</span>
-                            <span class="workspace-nav__text">
-                                <strong>@item.Title</strong>
-                                <small>@item.Description</small>
-                            </span>
-                        </NavLink>
-                    }
-                </nav>
-
-                @if (Facts.Count > 0)
-                {
-                    <section class="workspace-sidebar__panel">
-                        <div class="workspace-panel__header">
-                            <p class="demo-card__eyebrow">数据快照</p>
-                            <h3>当前规模</h3>
-                        </div>
-                        <div class="workspace-facts">
-                            @foreach (var fact in Facts)
-                            {
-                                <div class="workspace-fact workspace-fact--@fact.Tone">
-                                    <span class="workspace-fact__label">@fact.Label</span>
-                                    <strong class="workspace-fact__value">@fact.Value</strong>
-                                </div>
-                            }
-                        </div>
-                    </section>
-                }
-            </aside>
+            <DemoWorkspaceSidebar
+                RuntimeStatusText="@RuntimeStatusText"
+                RuntimeStatusClass="@RuntimeStatusClass"
+                BindingStatusText="@BindingStatusText"
+                BindingStatusClass="@BindingStatusClass"
+                NavigationItems="@NavigationItems"
+                Facts="@Facts" />
 
             <section class="workspace-main">
-                <header class="workspace-page-header">
-                    <div class="workspace-page-header__intro">
-                        <p class="demo-card__eyebrow">@Eyebrow</p>
-                        <h2>@Title</h2>
-                        @if (!string.IsNullOrWhiteSpace(Description))
-                        {
-                            <p>@Description</p>
-                        }
-                    </div>
-                    @if (Facts.Count > 0)
-                    {
-                        <div class="workspace-page-header__facts">
-                            @foreach (var fact in Facts)
-                            {
-                                <div class="workspace-fact workspace-fact--@fact.Tone">
-                                    <span class="workspace-fact__label">@fact.Label</span>
-                                    <strong class="workspace-fact__value">@fact.Value</strong>
-                                </div>
-                            }
-                        </div>
-                    }
-                </header>
+                <DemoWorkspacePageHeader
+                    Eyebrow="@Eyebrow"
+                    Title="@Title"
+                    Description="@Description"
+                    Facts="@Facts" />
 
                 <div class="demo-grid demo-grid--workspace">
                     @ChildContent
@@ -176,7 +108,12 @@ else
     [Parameter]
     public IReadOnlyList<WorkspaceNavItem> NavigationItems { get; set; } = [];
 
-    public sealed record WorkspaceNavItem(string Href, string Icon, string Title, string Description, NavLinkMatch Match = NavLinkMatch.Prefix);
+    public sealed record WorkspaceNavItem(
+        string Href,
+        string Icon,
+        string Title,
+        string Description,
+        Microsoft.AspNetCore.Components.Routing.NavLinkMatch Match = Microsoft.AspNetCore.Components.Routing.NavLinkMatch.Prefix);
 
     [Parameter]
     public IReadOnlyList<WorkspaceFactItem> Facts { get; set; } = [];

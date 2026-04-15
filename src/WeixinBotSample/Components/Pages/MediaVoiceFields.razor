@@ -1,0 +1,42 @@
+@namespace WeixinBotSample.Components.Pages
+
+<label class="demo-field">
+    <span>语音编码类型</span>
+    <input
+        class="@GetMediaFieldClass(EncodeTypeValue)"
+        type="number"
+        min="1"
+        @bind="MediaRequest.EncodeType"
+        @bind:after="ClearValidationAsync" />
+</label>
+<label class="demo-field">
+    <span>语音时长（毫秒）</span>
+    <input
+        class="@GetMediaFieldClass(PlayTimeValue)"
+        type="number"
+        min="1"
+        @bind="MediaRequest.PlayTimeMilliseconds"
+        @bind:after="ClearValidationAsync" />
+</label>
+
+@code {
+    [Parameter]
+    public MediaUploadRequest MediaRequest { get; set; } = new();
+
+    [Parameter]
+    public string EncodeTypeValue { get; set; } = string.Empty;
+
+    [Parameter]
+    public string PlayTimeValue { get; set; } = string.Empty;
+
+    [Parameter]
+    public Func<string, string> GetMediaFieldClass { get; set; } = value => value;
+
+    [Parameter]
+    public EventCallback OnClearValidation { get; set; }
+
+    private Task ClearValidationAsync()
+    {
+        return OnClearValidation.InvokeAsync();
+    }
+}

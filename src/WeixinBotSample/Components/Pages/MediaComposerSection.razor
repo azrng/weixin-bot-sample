@@ -41,11 +41,17 @@
     <div class="demo-form-grid">
         <label class="demo-field">
             <span>ExternalChatId</span>
-            <input class="@GetMediaFieldClass(MediaRequest.ExternalChatId)" @bind="MediaRequest.ExternalChatId" @bind:after="ClearValidationAsync" />
+            <input
+                class="@GetMediaFieldClass(MediaRequest.ExternalChatId)"
+                @bind="MediaRequest.ExternalChatId"
+                @bind:after="ClearValidationAsync" />
         </label>
         <label class="demo-field">
             <span>ContextToken</span>
-            <input class="@GetMediaFieldClass(MediaRequest.ContextToken)" @bind="MediaRequest.ContextToken" @bind:after="ClearValidationAsync" />
+            <input
+                class="@GetMediaFieldClass(MediaRequest.ContextToken)"
+                @bind="MediaRequest.ContextToken"
+                @bind:after="ClearValidationAsync" />
         </label>
         <label class="demo-field">
             <span>媒体类型</span>
@@ -62,14 +68,12 @@
         </div>
         @if (IsVoiceMediaType)
         {
-            <label class="demo-field">
-                <span>语音编码类型</span>
-                <input class="@GetMediaFieldClass(MediaRequest.EncodeType <= 0 ? string.Empty : MediaRequest.EncodeType.ToString())" type="number" min="1" @bind="MediaRequest.EncodeType" @bind:after="ClearValidationAsync" />
-            </label>
-            <label class="demo-field">
-                <span>语音时长（毫秒）</span>
-                <input class="@GetMediaFieldClass(MediaRequest.PlayTimeMilliseconds <= 0 ? string.Empty : MediaRequest.PlayTimeMilliseconds.ToString())" type="number" min="1" @bind="MediaRequest.PlayTimeMilliseconds" @bind:after="ClearValidationAsync" />
-            </label>
+            <MediaVoiceFields
+                MediaRequest="MediaRequest"
+                EncodeTypeValue="@(MediaRequest.EncodeType <= 0 ? string.Empty : MediaRequest.EncodeType.ToString())"
+                PlayTimeValue="@(MediaRequest.PlayTimeMilliseconds <= 0 ? string.Empty : MediaRequest.PlayTimeMilliseconds.ToString())"
+                GetMediaFieldClass="GetMediaFieldClass"
+                OnClearValidation="OnClearValidation" />
         }
         <label class="demo-field demo-field--full">
             <span>选择文件</span>

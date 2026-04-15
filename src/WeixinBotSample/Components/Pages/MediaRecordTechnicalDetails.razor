@@ -1,0 +1,89 @@
+@namespace WeixinBotSample.Components.Pages
+
+<div class="technical-detail-grid">
+    @if (!string.IsNullOrWhiteSpace(Record.AsrText))
+    {
+        <div class="technical-detail">
+            <span class="technical-detail__label">语音 ASR</span>
+            <span class="technical-value">@Record.AsrText</span>
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Record.ContextToken))
+    {
+        <div class="technical-detail">
+            <span class="technical-detail__label">ContextToken</span>
+            <span class="technical-value">@Record.ContextToken</span>
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Record.FileKey))
+    {
+        <div class="technical-detail">
+            <span class="technical-detail__label">FileKey</span>
+            <span class="technical-value">@Record.FileKey</span>
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Record.Md5))
+    {
+        <div class="technical-detail">
+            <span class="technical-detail__label">MD5</span>
+            <span class="technical-value">@Record.Md5</span>
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Record.AesKey))
+    {
+        <div class="technical-detail">
+            <span class="technical-detail__label">AES Key</span>
+            <span class="technical-value">@Record.AesKey</span>
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Record.DownloadParam))
+    {
+        <div class="technical-detail">
+            <span class="technical-detail__label">Download Param</span>
+            <span class="technical-value">@Record.DownloadParam</span>
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Record.LocalCachePath))
+    {
+        <div class="technical-detail">
+            <span class="technical-detail__label">缓存路径</span>
+            <span class="technical-value">@Record.LocalCachePath</span>
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Record.TraceFilePath))
+    {
+        <div class="technical-detail">
+            <span class="technical-detail__label">Trace 文件</span>
+            <span class="technical-value">@Record.TraceFilePath</span>
+        </div>
+    }
+    @if (Record.FileSize > 0)
+    {
+        <div class="technical-detail">
+            <span class="technical-detail__label">明文大小</span>
+            <span class="technical-value">@FormatFileSize(Record.FileSize)</span>
+        </div>
+    }
+    @if (Record.EncryptedFileSize > 0)
+    {
+        <div class="technical-detail">
+            <span class="technical-detail__label">密文大小</span>
+            <span class="technical-value">@FormatFileSize(Record.EncryptedFileSize)</span>
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Record.ResponseSummary))
+    {
+        <div class="technical-detail">
+            <span class="technical-detail__label">响应摘要</span>
+            <span class="technical-value">@Record.ResponseSummary</span>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public MediaTransferRecord Record { get; set; } = new();
+
+    [Parameter]
+    public Func<long, string> FormatFileSize { get; set; } = _ => "-";
+}

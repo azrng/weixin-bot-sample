@@ -1,0 +1,63 @@
+@namespace WeixinBotSample.Components.Pages
+
+<tr>
+    <td>@FormatDateTime(Record.UpdatedAt)</td>
+    <td>@Record.Direction</td>
+    <td>@GetMediaTypeText(Record.MediaType)</td>
+    <td class="technical-cell">@DisplayOrFallback(Record.FileName, "未命名媒体")</td>
+    <td><span class="@GetMediaStatusClass(Record.TransferStatus)">@GetMediaStatusText(Record.TransferStatus)</span></td>
+    <td class="technical-cell">@DisplayOrFallback(Record.StatusMessage, Record.ResponseSummary)</td>
+    <td class="text-end">
+        <button class="btn btn-sm btn-outline-primary" @onclick="DownloadAsync" disabled="@IsDownloadDisabled">下载并解密</button>
+    </td>
+</tr>
+@if (ShowTechnicalDetails)
+{
+    <tr class="demo-table__detail-row">
+        <td colspan="7">
+            <MediaRecordTechnicalDetails Record="Record" FormatFileSize="FormatFileSize" />
+        </td>
+    </tr>
+}
+
+@code {
+    [Parameter]
+    public MediaTransferRecord Record { get; set; } = new();
+
+    [Parameter]
+    public bool ShowTechnicalDetails { get; set; }
+
+    [Parameter]
+    public bool IsSendingMedia { get; set; }
+
+    [Parameter]
+    public Func<DateTimeOffset?, string> FormatDateTime { get; set; } = _ => "-";
+
+    [Parameter]
+    public Func<string?, string, string> DisplayOrFallback { get; set; } = (_, fallback) => fallback;
+
+    [Parameter]
+    public Func<MediaTransferStatus, string> GetMediaStatusClass { get; set; } = _ => string.Empty;
+
+    [Parameter]
+    public Func<MediaTransferStatus, string> GetMediaStatusText { get; set; } = _ => string.Empty;
+
+    [Parameter]
+    public Func<MediaMessageType, string> GetMediaTypeText { get; set; } = _ => string.Empty;
+
+    [Parameter]
+    public Func<long, string> FormatFileSize { get; set; } = _ => "-";
+
+    [Parameter]
+    public EventCallback<string> OnDownload { get; set; }
+
+    private bool IsDownloadDisabled =>
+        IsSendingMedia ||
+        string.IsNullOrWhiteSpace(Record.DownloadParam) ||
+        string.IsNullOrWhiteSpace(Record.AesKey);
+
+    private Task DownloadAsync()
+    {
+        return OnDownload.InvokeAsync(Record.Id);
+    }
+}

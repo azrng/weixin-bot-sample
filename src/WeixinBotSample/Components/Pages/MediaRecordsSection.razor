@@ -25,103 +25,17 @@
                 <tbody>
                     @foreach (var item in Records)
                     {
-                        <tr>
-                            <td>@FormatDateTime(item.UpdatedAt)</td>
-                            <td>@item.Direction</td>
-                            <td>@GetMediaTypeText(item.MediaType)</td>
-                            <td class="technical-cell">@DisplayOrFallback(item.FileName, "未命名媒体")</td>
-                            <td><span class="@GetMediaStatusClass(item.TransferStatus)">@GetMediaStatusText(item.TransferStatus)</span></td>
-                            <td class="technical-cell">@DisplayOrFallback(item.StatusMessage, item.ResponseSummary)</td>
-                            <td class="text-end">
-                                <button class="btn btn-sm btn-outline-primary" @onclick="@(() => OnDownload.InvokeAsync(item.Id))" disabled="@IsSendingMedia || string.IsNullOrWhiteSpace(item.DownloadParam) || string.IsNullOrWhiteSpace(item.AesKey)">下载并解密</button>
-                            </td>
-                        </tr>
-                        @if (ShouldShowMediaTechnicalDetails(item))
-                        {
-                            <tr class="demo-table__detail-row">
-                                <td colspan="7">
-                                    <div class="technical-detail-grid">
-                                        @if (!string.IsNullOrWhiteSpace(item.AsrText))
-                                        {
-                                            <div class="technical-detail">
-                                                <span class="technical-detail__label">语音 ASR</span>
-                                                <span class="technical-value">@item.AsrText</span>
-                                            </div>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(item.ContextToken))
-                                        {
-                                            <div class="technical-detail">
-                                                <span class="technical-detail__label">ContextToken</span>
-                                                <span class="technical-value">@item.ContextToken</span>
-                                            </div>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(item.FileKey))
-                                        {
-                                            <div class="technical-detail">
-                                                <span class="technical-detail__label">FileKey</span>
-                                                <span class="technical-value">@item.FileKey</span>
-                                            </div>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(item.Md5))
-                                        {
-                                            <div class="technical-detail">
-                                                <span class="technical-detail__label">MD5</span>
-                                                <span class="technical-value">@item.Md5</span>
-                                            </div>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(item.AesKey))
-                                        {
-                                            <div class="technical-detail">
-                                                <span class="technical-detail__label">AES Key</span>
-                                                <span class="technical-value">@item.AesKey</span>
-                                            </div>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(item.DownloadParam))
-                                        {
-                                            <div class="technical-detail">
-                                                <span class="technical-detail__label">Download Param</span>
-                                                <span class="technical-value">@item.DownloadParam</span>
-                                            </div>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(item.LocalCachePath))
-                                        {
-                                            <div class="technical-detail">
-                                                <span class="technical-detail__label">缓存路径</span>
-                                                <span class="technical-value">@item.LocalCachePath</span>
-                                            </div>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(item.TraceFilePath))
-                                        {
-                                            <div class="technical-detail">
-                                                <span class="technical-detail__label">Trace 文件</span>
-                                                <span class="technical-value">@item.TraceFilePath</span>
-                                            </div>
-                                        }
-                                        @if (item.FileSize > 0)
-                                        {
-                                            <div class="technical-detail">
-                                                <span class="technical-detail__label">明文大小</span>
-                                                <span class="technical-value">@FormatFileSize(item.FileSize)</span>
-                                            </div>
-                                        }
-                                        @if (item.EncryptedFileSize > 0)
-                                        {
-                                            <div class="technical-detail">
-                                                <span class="technical-detail__label">密文大小</span>
-                                                <span class="technical-value">@FormatFileSize(item.EncryptedFileSize)</span>
-                                            </div>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(item.ResponseSummary))
-                                        {
-                                            <div class="technical-detail">
-                                                <span class="technical-detail__label">响应摘要</span>
-                                                <span class="technical-value">@item.ResponseSummary</span>
-                                            </div>
-                                        }
-                                    </div>
-                                </td>
-                            </tr>
-                        }
+                        <MediaRecordRow
+                            Record="item"
+                            ShowTechnicalDetails="@ShouldShowMediaTechnicalDetails(item)"
+                            IsSendingMedia="@IsSendingMedia"
+                            FormatDateTime="FormatDateTime"
+                            DisplayOrFallback="DisplayOrFallback"
+                            GetMediaStatusClass="GetMediaStatusClass"
+                            GetMediaStatusText="GetMediaStatusText"
+                            GetMediaTypeText="GetMediaTypeText"
+                            FormatFileSize="FormatFileSize"
+                            OnDownload="OnDownload" />
                     }
                 </tbody>
             </table>

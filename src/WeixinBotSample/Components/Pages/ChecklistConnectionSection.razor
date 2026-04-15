@@ -1,0 +1,51 @@
+@namespace WeixinBotSample.Components.Pages
+
+<article class="demo-card">
+    <div class="demo-card__header">
+        <div>
+            <p class="demo-card__eyebrow">协议自检</p>
+            <h2>连接与 Typing 状态</h2>
+        </div>
+        <button class="btn btn-outline-primary" @onclick="OnValidateConnection" disabled="@IsCheckingConnection">
+            @(IsCheckingConnection ? "检测中..." : "验证连接")
+        </button>
+    </div>
+    <dl class="meta-list">
+        <div>
+            <dt>最近自检</dt>
+            <dd>@LastCheckAt</dd>
+        </div>
+        <div>
+            <dt>自检结果</dt>
+            <dd>@LastCheckMessage</dd>
+        </div>
+        <div>
+            <dt>Typing Ticket</dt>
+            <dd class="technical-value">@TypingTicket</dd>
+        </div>
+        <div>
+            <dt>Ticket 更新时间</dt>
+            <dd>@TypingTicketUpdatedAt</dd>
+        </div>
+    </dl>
+</article>
+
+@code {
+    [Parameter]
+    public bool IsCheckingConnection { get; set; }
+
+    [Parameter]
+    public string LastCheckAt { get; set; } = string.Empty;
+
+    [Parameter]
+    public string LastCheckMessage { get; set; } = string.Empty;
+
+    [Parameter]
+    public string TypingTicket { get; set; } = string.Empty;
+
+    [Parameter]
+    public string TypingTicketUpdatedAt { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback OnValidateConnection { get; set; }
+}

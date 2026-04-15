@@ -1,0 +1,42 @@
+@namespace WeixinBotSample.Components.Pages
+
+<article class="demo-card">
+    <div class="demo-card__header">
+        <div>
+            <p class="demo-card__eyebrow">当前环境</p>
+            <h2>联调上下文</h2>
+        </div>
+    </div>
+    <dl class="meta-list">
+        <div>
+            <dt>绑定状态</dt>
+            <dd>@BindingStatusText</dd>
+        </div>
+        <div>
+            <dt>运行状态</dt>
+            <dd>@RuntimeStatusText</dd>
+        </div>
+        <div>
+            <dt>最近联系人</dt>
+            <dd>@LatestContact</dd>
+        </div>
+        <div>
+            <dt>最近媒体记录</dt>
+            <dd>@LatestMediaRecord</dd>
+        </div>
+    </dl>
+</article>
+
+@code {
+    [Parameter]
+    public string BindingStatusText { get; set; } = string.Empty;
+
+    [Parameter]
+    public string RuntimeStatusText { get; set; } = string.Empty;
+
+    [Parameter]
+    public string LatestContact { get; set; } = string.Empty;
+
+    [Parameter]
+    public string LatestMediaRecord { get; set; } = string.Empty;
+}

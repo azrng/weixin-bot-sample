@@ -1,0 +1,36 @@
+<header class="workspace-page-header">
+    <div class="workspace-page-header__intro">
+        <p class="demo-card__eyebrow">@Eyebrow</p>
+        <h2>@Title</h2>
+        @if (!string.IsNullOrWhiteSpace(Description))
+        {
+            <p>@Description</p>
+        }
+    </div>
+    @if (Facts.Count > 0)
+    {
+        <div class="workspace-page-header__facts">
+            @foreach (var fact in Facts)
+            {
+                <div class="workspace-fact workspace-fact--@fact.Tone">
+                    <span class="workspace-fact__label">@fact.Label</span>
+                    <strong class="workspace-fact__value">@fact.Value</strong>
+                </div>
+            }
+        </div>
+    }
+</header>
+
+@code {
+    [Parameter]
+    public string Eyebrow { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Description { get; set; } = string.Empty;
+
+    [Parameter]
+    public IReadOnlyList<DemoWorkspaceShell.WorkspaceFactItem> Facts { get; set; } = [];
+}
