@@ -698,6 +698,10 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
 
     protected sealed record ProtocolCapabilityView(string Code, string Scene, string Status, string Entry, string Summary);
 
+    protected sealed record OverviewInsightItem(string Icon, string Title, string Value, string Detail, string Tone);
+
+    protected sealed record OverviewRecommendation(string Tone, string Title, string Message, string LinkText, string Href);
+
     protected IReadOnlyList<DemoWorkspaceShell.WorkspaceFactItem> GetWorkspaceFacts()
     {
         var passedChecklist = State?.ChecklistItems.Count(item => item.Status == ChecklistItemStatus.Passed) ?? 0;
@@ -715,6 +719,146 @@ public abstract class DemoWorkspacePageBase : ComponentBase, IAsyncDisposable
             new("媒体", mediaCount.ToString(), mediaCount > 0 ? "info" : "neutral"),
             new("Checklist", totalChecklist == 0 ? "0 / 0" : $"{passedChecklist} / {totalChecklist}", passedChecklist > 0 ? "success" : "warning"),
         ];
+    }
+
+    protected IReadOnlyList<OverviewInsightItem> GetOverviewInsights()
+    {
+        var latestContact = State?.KnownContacts.FirstOrDefault();
+        var latestMedia = State?.MediaRecords.FirstOrDefault();
+        var passedChecklist = State?.ChecklistItems.Count(item => item.Status == ChecklistItemStatus.Passed) ?? 0;
+        var totalChecklist = State?.ChecklistItems.Count ?? 0;
+
+        return
+        [
+            new(
+                "bi bi-person-check",
+                "最近会话",
+                latestContact is null ? "待触发" : DisplayOrFallback(latestContact.SenderName, latestContact.ExternalChatId),
+                latestContact is null ? "还没有拿到可续聊的联系人上下文。" : $"最近会话时间：{FormatDateTime(latestContact.LastMessageAt)}",
+                latestContact is null ? "warning" : "info"),
+            new(
+                "bi bi-file-earmark-lock2",
+                "媒体链路",
+                latestMedia is null ? "尚无记录" : GetMediaTypeText(latestMedia.MediaType),
+                latestMedia is null ? "建议至少完成一次上传发送或下载回读。" : $"最近状态：{GetMediaStatusText(latestMedia.TransferStatus)}",
+                latestMedia is null ? "warning" : latestMedia.TransferStatus is MediaTransferStatus.Sent or MediaTransferStatus.Downloaded ? "success" : latestMedia.TransferStatus == MediaTransferStatus.Failed ? "danger" : "info"),
+            new(
+                "bi bi-clipboard-data",
+                "联调进度",
+                totalChecklist == 0 ? "0 / 0" : $"{passedChecklist} / {totalChecklist}",
+                totalChecklist == 0 ? "Checklist 尚未初始化。" : passedChecklist == totalChecklist ? "公开场景检查已全部通过。" : "还有检查项等待现场证据。",
+                totalChecklist > 0 && passedChecklist == totalChecklist ? "success" : "warning"),
+            new(
+                "bi bi-activity",
+                "连接状态",
+                State?.LastConnectionCheck is null ? "待检测" : (State.LastConnectionCheck.Succeeded ? "可用" : "异常"),
+                State?.LastConnectionCheck is null ? "建议先执行一次“验证连接”。" : DisplayOrFallback(State.LastConnectionCheck.Message, "暂无连接说明。"),
+                State?.LastConnectionCheck is null ? "warning" : State.LastConnectionCheck.Succeeded ? "success" : "danger"),
+        ];
+    }
+
+    protected OverviewRecommendation GetOverviewRecommendation()
+    {
+        if (State?.Configuration.IsBound != true)
+        {
+            return new OverviewRecommendation("warning", "先完成二维码绑定", "当前还没有拿到可用的 Bot 会话，建议先在首页完成扫码绑定，再开始后续联调。", "留在总览页操作", "/");
+        }
+
+        if (State.Configuration.RuntimeStatus != ChannelRuntimeStatus.Running)
+        {
+            return new OverviewRecommendation("info", "建议启动监听", "监听运行后，系统才能自动沉淀联系人上下文、入站消息和最近会话目标。", "查看消息中心", "/messages");
+        }
+
+        if (State.KnownContacts.Count == 0)
+        {
+            return new OverviewRecommendation("warning", "让真实联系人先发一条消息", "当前已经绑定并运行，但还没有可续聊的会话。拿到 ExternalChatId 和 ContextToken 后，主动推送和媒体联调都会更顺。", "前往消息中心", "/messages");
+        }
+
+        if (State.MediaRecords.All(item => item.TransferStatus is not MediaTransferStatus.Sent and not MediaTransferStatus.Downloaded))
+        {
+            return new OverviewRecommendation("info", "建议执行一次媒体联调", "文本链路已经具备基础条件，下一步可以在媒体页完成上传、发送和下载回读，验证协议的文件能力。", "前往媒体页", "/media");
+        }
+
+        var checklistTotal = State.ChecklistItems.Count;
+        var checklistPassed = State.ChecklistItems.Count(item => item.Status == ChecklistItemStatus.Passed);
+        if (checklistTotal == 0 || checklistPassed < checklistTotal)
+        {
+            return new OverviewRecommendation("warning", "Checklist 还没有全部闭环", "建议再执行一次联调整体检查，把已经验证的能力和仍需现场触发的场景重新梳理清楚。", "前往联调页", "/checklist");
+        }
+
+        return new OverviewRecommendation("success", "当前 Demo 已具备完整演示骨架", "首页、消息、媒体、联调四条主线都已经具备可操作页面，可以继续针对真实账号环境做更细的协议验证。", "复核联调页", "/checklist");
+    }
+
+    protected string GetCapabilityStatusClass(string status)
+    {
+        return status switch
+        {
+            "已验证" or "已支持" or "已积累" or "已运行" or "运行中" or "可用" => "demo-badge demo-badge--success",
+            "待执行" or "待触发" or "待消息触发" or "待真实语音" or "待真实联调" or "待检测" or "说明中" => "demo-badge demo-badge--warning",
+            "异常" => "demo-badge demo-badge--danger",
+            _ => "demo-badge demo-badge--neutral",
+        };
+    }
+
+    protected string GetMediaStatusClass(MediaTransferStatus status)
+    {
+        return status switch
+        {
+            MediaTransferStatus.Sent or MediaTransferStatus.Downloaded or MediaTransferStatus.Received => "demo-badge demo-badge--success",
+            MediaTransferStatus.Failed => "demo-badge demo-badge--danger",
+            MediaTransferStatus.Preparing or MediaTransferStatus.Encrypting or MediaTransferStatus.Uploading or MediaTransferStatus.Sending or MediaTransferStatus.Downloading => "demo-badge demo-badge--info",
+            _ => "demo-badge demo-badge--neutral",
+        };
+    }
+
+    protected string GetChecklistStatusClass(ChecklistItemStatus status)
+    {
+        return status switch
+        {
+            ChecklistItemStatus.Passed => "demo-badge demo-badge--success",
+            ChecklistItemStatus.Failed => "demo-badge demo-badge--danger",
+            ChecklistItemStatus.Blocked => "demo-badge demo-badge--warning",
+            _ => "demo-badge demo-badge--neutral",
+        };
+    }
+
+    protected string GetReplyStatusClass(WeixinMessageRecord item)
+    {
+        var replyStatus = item.ReplyStatus ?? string.Empty;
+        if (item.ReplySucceeded)
+        {
+            return "demo-badge demo-badge--success";
+        }
+
+        if (replyStatus.Contains("缺少", StringComparison.Ordinal) ||
+            replyStatus.Contains("未执行", StringComparison.Ordinal))
+        {
+            return "demo-badge demo-badge--warning";
+        }
+
+        return "demo-badge demo-badge--danger";
+    }
+
+    protected string GetReplyStatusSummary(WeixinMessageRecord item)
+    {
+        var replyStatus = item.ReplyStatus ?? string.Empty;
+        if (item.ReplySucceeded)
+        {
+            return "回复成功";
+        }
+
+        if (replyStatus.Contains("缺少", StringComparison.Ordinal) ||
+            replyStatus.Contains("未执行", StringComparison.Ordinal))
+        {
+            return "待补上下文";
+        }
+
+        if (replyStatus.Contains("过期", StringComparison.Ordinal))
+        {
+            return "会话过期";
+        }
+
+        return "回复失败";
     }
 
     protected static bool ShouldApplySuggestedValue(string currentValue, string lastSuggestedValue)

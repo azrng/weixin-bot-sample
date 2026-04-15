@@ -109,7 +109,7 @@
                         {
                             <tr>
                                 <td>@item.Name</td>
-                                <td>@GetChecklistStatusText(item.Status)</td>
+                                <td><span class="@GetChecklistStatusClass(item.Status)">@GetChecklistStatusText(item.Status)</span></td>
                                 <td>@FormatDateTime(item.CheckedAt)</td>
                                 <td class="technical-cell">@item.Message</td>
                                 <td class="technical-cell">@DisplayOrFallback(item.Evidence, item.Description)</td>

@@ -20,6 +20,40 @@
     Description="这一页保留最常用的绑定、监听、配置和能力矩阵，联调细节则拆到独立页面。"
     Facts="@GetWorkspaceFacts()"
     NavigationItems="@WorkspaceNavItems">
+    @{
+        var overviewRecommendation = GetOverviewRecommendation();
+    }
+
+    <article class="demo-card demo-card--wide">
+        <div class="demo-card__header">
+            <div>
+                <p class="demo-card__eyebrow">演示看板</p>
+                <h2>关键指标与下一步建议</h2>
+            </div>
+        </div>
+        <div class="overview-grid">
+            @foreach (var insight in GetOverviewInsights())
+            {
+                <section class="overview-card overview-card--@insight.Tone">
+                    <div class="overview-card__icon">
+                        <i class="@insight.Icon" aria-hidden="true"></i>
+                    </div>
+                    <div class="overview-card__body">
+                        <span class="overview-card__label">@insight.Title</span>
+                        <strong class="overview-card__value">@insight.Value</strong>
+                        <p>@insight.Detail</p>
+                    </div>
+                </section>
+            }
+            <section class="overview-guidance overview-guidance--@overviewRecommendation.Tone">
+                <p class="demo-card__eyebrow">建议动作</p>
+                <h3>@overviewRecommendation.Title</h3>
+                <p>@overviewRecommendation.Message</p>
+                <a class="btn btn-sm btn-outline-primary" href="@overviewRecommendation.Href">@overviewRecommendation.LinkText</a>
+            </section>
+        </div>
+    </article>
+
     <article class="demo-card demo-card--wide">
         <div class="demo-card__header">
             <div>
@@ -205,7 +239,7 @@
                     {
                         <tr>
                             <td>@capability.Scene</td>
-                            <td>@capability.Status</td>
+                            <td><span class="@GetCapabilityStatusClass(capability.Status)">@capability.Status</span></td>
                             <td>@capability.Entry</td>
                             <td class="technical-cell">@capability.Summary</td>
                         </tr>

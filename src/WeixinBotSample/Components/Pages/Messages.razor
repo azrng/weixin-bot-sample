@@ -158,7 +158,10 @@
                                 <td>@DisplayOrFallback(item.SenderName, item.ExternalUserId)</td>
                                 <td class="technical-cell">@item.ExternalChatId</td>
                                 <td class="technical-cell">@item.Text</td>
-                                <td class="technical-cell">@item.ReplyStatus</td>
+                                <td class="technical-cell">
+                                    <span class="@GetReplyStatusClass(item)">@GetReplyStatusSummary(item)</span>
+                                    <div class="demo-table__subtext">@item.ReplyStatus</div>
+                                </td>
                             </tr>
                         }
                     </tbody>
